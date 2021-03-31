@@ -110,8 +110,6 @@ def parse_args():
                         help="Build type, e.g., Debug, Release, RelWithDebInfo")
     parser.add_argument("--cmake_generator", default="",
                         help="CMake generator, e.g., Visual Studio 14")
-    parser.add_argument("--cmake_generator_toolset", default="v141",
-                        help="CMake generator toolset, e.g., v141")
     parser.add_argument("--no_ssl_verification",
                         dest="ssl_verification", action="store_false",
                         help="Whether to disable SSL certificate verification "
@@ -139,12 +137,7 @@ def parse_args():
     if args.cmake_generator:
         args.cmake_config_args.extend(["-G", args.cmake_generator])
     if PLATFORM_IS_WINDOWS:
-        if args.cmake_generator_toolset:
-            args.cmake_config_args.append(
-                "-DCMAKE_GENERATOR_TOOLSET={},'host=x64'".format(args.cmake_generator_toolset))
-        else:
-            args.cmake_config_args.append("-DCMAKE_GENERATOR_TOOLSET='host=x64'")
-        
+        args.cmake_config_args.append("-DCMAKE_GENERATOR_TOOLSET='host=x64'")
         if "Win64" not in args.cmake_generator:
             args.cmake_config_args.append(
                 "-DCMAKE_GENERATOR_PLATFORM=x64")
