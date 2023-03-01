@@ -10,6 +10,11 @@ jobs:
   displayName: '${{ parameters.displayName }}'
   pool:
     vmImage: 'ubuntu-${{ parameters.ubuntuVersion }}'
+  variables:
+    ${{ if eq(parameters.asanEnabled, false) }}:
+      ctestExclusions: "(mvs/gpu_mat_test)"
+    ${{ if eq(parameters.asanEnabled, true) }}:
+      ctestExclusions: "(feature/sift_test)|(util/opengl_utils_test)|(mvs/gpu_mat_test)"
   steps:
   - script: |
       sudo apt-get update && sudo apt-get install -y \
@@ -22,10 +27,12 @@ jobs:
         libboost-test-dev \
         libeigen3-dev \
         libceres-dev \
+        libflann-dev \
         libfreeimage-dev \
         libmetis-dev \
         libgoogle-glog-dev \
         libgflags-dev \
+        libsqlite3-dev \
         libglew-dev \
         qtbase5-dev \
         libqt5opengl5-dev \
@@ -70,7 +77,7 @@ jobs:
       cmake .. \
         -GNinja \
         -DTESTS_ENABLED=ON \
-        -DCUDA_ARCHS=5.0 \
+        -DCMAKE_CUDA_ARCHITECTURES=50 \
         -DASAN_ENABLED=${{ parameters.asanEnabled }}
       ninja
     displayName: 'Configure and build'
@@ -81,7 +88,7 @@ jobs:
       Xvfb :99 &
       sleep 3
       cd build
-      ctest -E "(feature/sift_test)|(util/opengl_utils_test)|(mvs/gpu_mat_test)"
+      ctest -E "$(ctestExclusions)"
       tests_pass=$?
       if [ $tests_pass -ne 0 ]; then
           echo "Tests failed, rerunning with verbose output"

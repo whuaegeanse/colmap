@@ -1,4 +1,4 @@
-// Copyright (c) 2022, ETH Zurich and UNC Chapel Hill.
+// Copyright (c) 2023, ETH Zurich and UNC Chapel Hill.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -259,7 +259,7 @@ bool BundleAdjuster::Solve(Reconstruction* reconstruction) {
   CHECK_NOTNULL(reconstruction);
   CHECK(!problem_) << "Cannot use the same BundleAdjuster multiple times";
 
-  problem_.reset(new ceres::Problem());
+  problem_ = std::make_unique<ceres::Problem>();
 
   ceres::LossFunction* loss_function = options_.CreateLossFunction();
   SetUp(reconstruction, loss_function);
@@ -816,7 +816,7 @@ bool RigBundleAdjuster::Solve(Reconstruction* reconstruction,
     }
   }
 
-  problem_.reset(new ceres::Problem());
+  problem_ = std::make_unique<ceres::Problem>();
 
   ceres::LossFunction* loss_function = options_.CreateLossFunction();
   SetUp(reconstruction, camera_rigs, loss_function);
