@@ -9,7 +9,7 @@ jobs:
   pool:
     vmImage: 'windows-${{ parameters.visualStudioVersion }}'
   variables:
-    vcpkgGitCommitId: 4efb7ed628be5e56eeee009524e6ca7f3cc49c74
+    vcpkgGitCommitId: 662dbb50e63af15baa2909b7eac5b1b87e86a0aa
   steps:
   - task: Cache@2
     displayName: 'Cache vcpkg'
