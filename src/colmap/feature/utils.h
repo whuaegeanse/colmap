@@ -29,8 +29,7 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_FEATURE_UTILS_H_
-#define COLMAP_SRC_FEATURE_UTILS_H_
+#pragma once
 
 #include "colmap/feature/types.h"
 
@@ -60,8 +59,6 @@ FeatureDescriptors FeatureDescriptorsToUnsignedByte(
 // Extract the descriptors corresponding to the largest-scale features.
 void ExtractTopScaleFeatures(FeatureKeypoints* keypoints,
                              FeatureDescriptors* descriptors,
-                             const size_t num_features);
+                             size_t num_features);
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_FEATURE_UTILS_H_

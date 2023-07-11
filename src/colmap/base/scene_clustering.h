@@ -29,13 +29,11 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_BASE_SCENE_CLUSTERING_H_
-#define COLMAP_SRC_BASE_SCENE_CLUSTERING_H_
+#pragma once
 
 #include "colmap/base/database.h"
 #include "colmap/util/types.h"
 
-#include <list>
 #include <memory>
 #include <vector>
 
@@ -73,7 +71,7 @@ class SceneClustering {
     std::vector<Cluster> child_clusters;
   };
 
-  SceneClustering(const Options& options);
+  explicit SceneClustering(const Options& options);
 
   void Partition(const std::vector<std::pair<image_t, image_t>>& image_pairs,
                  const std::vector<int>& num_inliers);
@@ -98,5 +96,3 @@ class SceneClustering {
 };
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_BASE_SCENE_CLUSTERING_H_

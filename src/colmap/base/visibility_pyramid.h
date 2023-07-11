@@ -29,8 +29,7 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_BASE_VISIBILITY_PYRAMID_H_
-#define COLMAP_SRC_BASE_VISIBILITY_PYRAMID_H_
+#pragma once
 
 #include <vector>
 
@@ -52,12 +51,10 @@ namespace colmap {
 class VisibilityPyramid {
  public:
   VisibilityPyramid();
-  VisibilityPyramid(const size_t num_levels,
-                    const size_t width,
-                    const size_t height);
+  VisibilityPyramid(size_t num_levels, size_t width, size_t height);
 
-  void SetPoint(const double x, const double y);
-  void ResetPoint(const double x, const double y);
+  void SetPoint(double x, double y);
+  void ResetPoint(double x, double y);
 
   inline size_t NumLevels() const;
   inline size_t Width() const;
@@ -67,10 +64,7 @@ class VisibilityPyramid {
   inline size_t MaxScore() const;
 
  private:
-  void CellForPoint(const double x,
-                    const double y,
-                    size_t* cx,
-                    size_t* cy) const;
+  void CellForPoint(double x, double y, size_t* cx, size_t* cy) const;
 
   // Range of the input points.
   size_t width_;
@@ -101,5 +95,3 @@ size_t VisibilityPyramid::Score() const { return score_; }
 size_t VisibilityPyramid::MaxScore() const { return max_score_; }
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_BASE_VISIBILITY_PYRAMID_H_

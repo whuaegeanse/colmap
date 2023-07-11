@@ -31,11 +31,11 @@
 
 #include "colmap/util/option_manager.h"
 
-#include "colmap/base/image_reader.h"
 #include "colmap/controllers/incremental_mapper.h"
 #include "colmap/feature/extraction.h"
 #include "colmap/feature/matching.h"
 #include "colmap/feature/sift.h"
+#include "colmap/image/reader.h"
 #include "colmap/mvs/fusion.h"
 #include "colmap/mvs/meshing.h"
 #include "colmap/mvs/patch_match.h"
@@ -110,6 +110,7 @@ void OptionManager::ModifyForInternetData() {
 
 void OptionManager::ModifyForLowQuality() {
   sift_extraction->max_image_size = 1000;
+  sift_extraction->max_num_features = 2048;
   sequential_matching->loop_detection_num_images /= 2;
   vocab_tree_matching->num_images /= 2;
   mapper->ba_local_max_num_iterations /= 2;
@@ -129,6 +130,7 @@ void OptionManager::ModifyForLowQuality() {
 
 void OptionManager::ModifyForMediumQuality() {
   sift_extraction->max_image_size = 1600;
+  sift_extraction->max_num_features = 4096;
   sequential_matching->loop_detection_num_images /= 1.5;
   vocab_tree_matching->num_images /= 1.5;
   mapper->ba_local_max_num_iterations /= 1.5;
@@ -149,6 +151,7 @@ void OptionManager::ModifyForMediumQuality() {
 void OptionManager::ModifyForHighQuality() {
   sift_extraction->estimate_affine_shape = true;
   sift_extraction->max_image_size = 2400;
+  sift_extraction->max_num_features = 8192;
   sift_matching->guided_matching = true;
   mapper->ba_local_max_num_iterations = 30;
   mapper->ba_local_max_refinements = 3;
@@ -855,12 +858,14 @@ void OptionManager::Parse(const int argc, char** argv) {
           << std::endl
           << std::endl;
       std::cout << *desc_ << std::endl;
+      // NOLINTNEXTLINE(concurrency-mt-unsafe)
       exit(EXIT_SUCCESS);
     }
 
     if (vmap.count("project_path")) {
       *project_path = vmap["project_path"].as<std::string>();
       if (!Read(*project_path)) {
+        // NOLINTNEXTLINE(concurrency-mt-unsafe)
         exit(EXIT_FAILURE);
       }
     } else {
@@ -869,15 +874,18 @@ void OptionManager::Parse(const int argc, char** argv) {
   } catch (std::exception& exc) {
     std::cerr << "ERROR: Failed to parse options - " << exc.what() << "."
               << std::endl;
+    // NOLINTNEXTLINE(concurrency-mt-unsafe)
     exit(EXIT_FAILURE);
   } catch (...) {
     std::cerr << "ERROR: Failed to parse options for unknown reason."
               << std::endl;
+    // NOLINTNEXTLINE(concurrency-mt-unsafe)
     exit(EXIT_FAILURE);
   }
 
   if (!Check()) {
     std::cerr << "ERROR: Invalid options provided." << std::endl;
+    // NOLINTNEXTLINE(concurrency-mt-unsafe)
     exit(EXIT_FAILURE);
   }
 }

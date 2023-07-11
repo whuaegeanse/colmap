@@ -29,12 +29,11 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_UI_IMAGE_VIEWER_WIDGET_H_
-#define COLMAP_SRC_UI_IMAGE_VIEWER_WIDGET_H_
+#pragma once
 
 #include "colmap/base/database.h"
-#include "colmap/base/projection.h"
 #include "colmap/base/reconstruction.h"
+#include "colmap/geometry/projection.h"
 #include "colmap/ui/qt_utils.h"
 #include "colmap/util/option_manager.h"
 
@@ -110,7 +109,7 @@ class DatabaseImageViewerWidget : public FeatureImageViewerWidget {
                             ModelViewerWidget* model_viewer_widget,
                             OptionManager* options);
 
-  void ShowImageWithId(const image_t image_id);
+  void ShowImageWithId(image_t image_id);
 
  private:
   void ResizeTable();
@@ -139,5 +138,3 @@ class DatabaseImageViewerWidget : public FeatureImageViewerWidget {
 };
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_UI_IMAGE_VIEWER_WIDGET_H_

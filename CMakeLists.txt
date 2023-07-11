@@ -33,6 +33,9 @@ cmake_minimum_required(VERSION 3.1)
 
 project(COLMAP LANGUAGES C CXX)
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(COLMAP_VERSION "3.9")
 set(COLMAP_VERSION_NUMBER "3900")
 
@@ -64,16 +67,9 @@ option(ASAN_ENABLED "Whether to enable AddressSanitizer flags" OFF)
 option(PROFILING_ENABLED "Whether to enable google-perftools linker flags" OFF)
 option(CCACHE_ENABLED "Whether to enable compiler caching, if available" ON)
 option(CGAL_ENABLED "Whether to enable the CGAL library" ON)
-option(BOOST_STATIC "Whether to enable static boost library linker flags" ON)
 
 if(TESTS_ENABLED)
     enable_testing()
-endif()
-
-if(BOOST_STATIC)
-    set(Boost_USE_STATIC_LIBS ON)
-else()
-    add_definitions("-DBOOST_TEST_DYN_LINK")
 endif()
 
 # Build position-independent code, so that shared libraries can link against
@@ -84,18 +80,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Find packages
 ################################################################################
 
-if(OPENMP_ENABLED)
-    find_package(OpenMP QUIET)
-endif()
-
 find_package(Ceres REQUIRED)
 
 find_package(Boost REQUIRED COMPONENTS
              program_options
              filesystem
              graph
-             system
-             unit_test_framework)
+             system)
 
 find_package(Eigen3 REQUIRED)
 
@@ -114,6 +105,14 @@ set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
 find_package(Glew REQUIRED)
 find_package(Git)
+
+if(TESTS_ENABLED)
+    find_package(GTest REQUIRED)
+endif()
+
+if(OPENMP_ENABLED)
+    find_package(OpenMP QUIET)
+endif()
 
 if(CGAL_ENABLED)
     set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
@@ -296,7 +295,7 @@ else()
     message(STATUS "Disabling OpenGL support")
 endif()
 
-if(CCACHE_ENABLED AND NOT "${CMAKE_BUILD_TYPE}" STREQUAL "ClangTidy")
+if(CCACHE_ENABLED)
     find_program(CCACHE ccache)
     if(CCACHE)
         message(STATUS "Enabling ccache support")
@@ -330,9 +329,9 @@ if(Qt5_FOUND)
     if(Qt5_POSITION_INDEPENDENT_CODE)
         set(CMAKE_POSITION_INDEPENDENT_CODE ON)
         # Workaround for Qt5 CMake config bug under Ubuntu 20.04: https://gitlab.kitware.com/cmake/cmake/-/issues/16915
-        if(${Qt5_VERSION} VERSION_EQUAL "5.12.8" AND TARGET Qt5::Core)
+        if(TARGET Qt5::Core)
             get_property(core_options TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS)
-            string(REPLACE "-fPIC" "" new_qt5_core_options ${core_options})
+            string(REPLACE "-fPIC" "" new_qt5_core_options "${core_options}")
             set_property(TARGET Qt5::Core PROPERTY INTERFACE_COMPILE_OPTIONS ${new_qt5_core_options})
             set_property(TARGET Qt5::Core PROPERTY INTERFACE_POSITION_INDEPENDENT_CODE "ON")
             if(NOT IS_MSVC)
@@ -353,16 +352,12 @@ endif()
 include(GenerateVersionDefinitions)
 
 set(COLMAP_INCLUDE_DIRS
-    ${Boost_INCLUDE_DIRS}
-    ${EIGEN3_INCLUDE_DIRS}
-    ${GLOG_INCLUDE_DIRS}
     ${FLANN_INCLUDE_DIRS}
     ${LZ4_INCLUDE_DIRS}
     ${FREEIMAGE_INCLUDE_DIRS}
     ${CERES_INCLUDE_DIRS}
     ${METIS_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
-    ${SQLite3_INCLUDE_DIRS}
 )
 
 set(COLMAP_LINK_DIRS
@@ -371,17 +366,19 @@ set(COLMAP_LINK_DIRS
 
 set(COLMAP_EXTERNAL_LIBRARIES
     ${CMAKE_DL_LIBS}
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${GLOG_LIBRARIES}
     ${FLANN_LIBRARIES}
     ${LZ4_LIBRARIES}
     ${FREEIMAGE_LIBRARIES}
     ${METIS_LIBRARIES}
     ${CERES_LIBRARIES}
     ${OPENGL_LIBRARIES}
-    ${SQLite3_LIBRARIES}
+    Boost::program_options
+    Boost::filesystem
+    Boost::graph
+    Boost::system
+    Eigen3::Eigen
+    glog::glog
+    SQLite::SQLite3
 )
 
 if(OPENMP_FOUND)

@@ -181,8 +181,8 @@ public:
 	//set SiftGPU to brief display mode, which is faster
 	inline void SetVerboseBrief(){SetVerbose(2);};
 	//parse SiftGPU parameters
-	SIFTGPU_EXPORT virtual void ParseParam(const int argc, const char **argv);
-	//run SIFT on a new image given filename
+        SIFTGPU_EXPORT virtual void ParseParam(int argc, const char** argv);
+        //run SIFT on a new image given filename
 	SIFTGPU_EXPORT virtual int  RunSIFT(const char * imgpath);
 	//run SIFT on an image in the image list given the file index
 	SIFTGPU_EXPORT virtual int	RunSIFT(int index);
@@ -198,7 +198,7 @@ public:
 	//run SIFT with keypoints on current image again.
 	SIFTGPU_EXPORT virtual int  RunSIFT(int num, const SiftKeypoint * keys, int keys_have_orientation = 1);
 	//constructor, the parameter np is ignored..
-	SIFTGPU_EXPORT SiftGPU(int np = 1);
+	SIFTGPU_EXPORT explicit SiftGPU(int np = 1);
 	//destructor
 	SIFTGPU_EXPORT virtual ~SiftGPU();
 	//set the active pyramid...dropped function
@@ -292,7 +292,7 @@ public:
 	inline int  VerifyContextGL() {return _VerifyContextGL();}
 
 	//Consructor, the argument specifies the maximum number of features to match
-	SIFTGPU_EXPORT SiftMatchGPU(int max_sift = 4096);
+	SIFTGPU_EXPORT explicit SiftMatchGPU(int max_sift = 4096);
 
 	//change gpu_language, check the enumerants in SIFTMATCH_LANGUAGE.
 	SIFTGPU_EXPORT virtual void SetLanguage(int gpu_language);

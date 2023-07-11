@@ -29,12 +29,11 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_FEATURE_EXTRACTION_H_
-#define COLMAP_SRC_FEATURE_EXTRACTION_H_
+#pragma once
 
 #include "colmap/base/database.h"
-#include "colmap/base/image_reader.h"
 #include "colmap/feature/sift.h"
+#include "colmap/image/reader.h"
 #include "colmap/util/opengl_utils.h"
 #include "colmap/util/threading.h"
 
@@ -104,7 +103,7 @@ struct ImageData {
 
 class ImageResizerThread : public Thread {
  public:
-  ImageResizerThread(const int max_image_size,
+  ImageResizerThread(int max_image_size,
                      JobQueue<ImageData>* input_queue,
                      JobQueue<ImageData>* output_queue);
 
@@ -138,7 +137,7 @@ class SiftFeatureExtractorThread : public Thread {
 
 class FeatureWriterThread : public Thread {
  public:
-  FeatureWriterThread(const size_t num_images,
+  FeatureWriterThread(size_t num_images,
                       Database* database,
                       JobQueue<ImageData>* input_queue);
 
@@ -153,5 +152,3 @@ class FeatureWriterThread : public Thread {
 }  // namespace internal
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_FEATURE_EXTRACTION_H_

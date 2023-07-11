@@ -29,13 +29,13 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_CONTROLLERS_AUTOMATIC_RECONSTRUCTION_H_
-#define COLMAP_SRC_CONTROLLERS_AUTOMATIC_RECONSTRUCTION_H_
+#pragma once
 
 #include "colmap/base/reconstruction_manager.h"
 #include "colmap/util/option_manager.h"
 #include "colmap/util/threading.h"
 
+#include <memory>
 #include <string>
 
 namespace colmap {
@@ -75,6 +75,9 @@ class AutomaticReconstructionController : public Thread {
     // Which camera model to use for images.
     std::string camera_model = "SIMPLE_RADIAL";
 
+    // Initial camera params for all images.
+    std::string camera_params;
+
     // Whether to perform sparse mapping.
     bool sparse = true;
 
@@ -101,7 +104,8 @@ class AutomaticReconstructionController : public Thread {
   };
 
   AutomaticReconstructionController(
-      const Options& options, ReconstructionManager* reconstruction_manager);
+      const Options& options,
+      std::shared_ptr<ReconstructionManager> reconstruction_manager);
 
   void Stop() override;
 
@@ -114,7 +118,7 @@ class AutomaticReconstructionController : public Thread {
 
   const Options options_;
   OptionManager option_manager_;
-  ReconstructionManager* reconstruction_manager_;
+  std::shared_ptr<ReconstructionManager> reconstruction_manager_;
   Thread* active_thread_;
   std::unique_ptr<Thread> feature_extractor_;
   std::unique_ptr<Thread> exhaustive_matcher_;
@@ -123,5 +127,3 @@ class AutomaticReconstructionController : public Thread {
 };
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_CONTROLLERS_AUTOMATIC_RECONSTRUCTION_H_

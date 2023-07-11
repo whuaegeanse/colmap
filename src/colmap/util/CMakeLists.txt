@@ -32,9 +32,7 @@
 set(FOLDER_NAME "util")
 
 COLMAP_ADD_SOURCES(
-    bitmap.h bitmap.cc
     cache.h
-    camera_specs.h camera_specs.cc
     logging.h logging.cc
     math.h math.cc
     matrix.h
@@ -47,7 +45,6 @@ COLMAP_ADD_SOURCES(
     string.h string.cc
     threading.h threading.cc
     timer.h timer.cc
-    testing.h
     types.h
     version.h version.cc
 )
@@ -59,7 +56,6 @@ if(CUDA_ENABLED)
     )
 endif()
 
-COLMAP_ADD_TEST(bitmap_test bitmap_test.cc)
 COLMAP_ADD_TEST(cache_test cache_test.cc)
 COLMAP_ADD_TEST(endian_test endian_test.cc)
 COLMAP_ADD_TEST(math_test math_test.cc)

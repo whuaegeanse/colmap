@@ -29,8 +29,7 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_BASE_RECONSTRUCTION_MANAGER_H_
-#define COLMAP_SRC_BASE_RECONSTRUCTION_MANAGER_H_
+#pragma once
 
 #include "colmap/base/reconstruction.h"
 
@@ -42,7 +41,7 @@ class OptionManager;
 
 class ReconstructionManager {
  public:
-  ReconstructionManager();
+  ReconstructionManager() = default;
 
   // Move constructor and assignment.
   ReconstructionManager(ReconstructionManager&& other) noexcept;
@@ -52,14 +51,14 @@ class ReconstructionManager {
   size_t Size() const;
 
   // Get a reference to a specific reconstruction.
-  const Reconstruction& Get(const size_t idx) const;
-  Reconstruction& Get(const size_t idx);
+  std::shared_ptr<const Reconstruction> Get(size_t idx) const;
+  std::shared_ptr<Reconstruction> Get(size_t idx);
 
   // Add a new empty reconstruction and return its index.
   size_t Add();
 
   // Delete a specific reconstruction.
-  void Delete(const size_t idx);
+  void Delete(size_t idx);
 
   // Delete all reconstructions.
   void Clear();
@@ -75,9 +74,7 @@ class ReconstructionManager {
  private:
   NON_COPYABLE(ReconstructionManager)
 
-  std::vector<std::unique_ptr<Reconstruction>> reconstructions_;
+  std::vector<std::shared_ptr<Reconstruction>> reconstructions_;
 };
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_BASE_RECONSTRUCTION_MANAGER_H_

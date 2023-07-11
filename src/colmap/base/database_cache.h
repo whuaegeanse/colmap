@@ -29,14 +29,13 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_BASE_DATABASE_CACHE_H_
-#define COLMAP_SRC_BASE_DATABASE_CACHE_H_
+#pragma once
 
 #include "colmap/base/camera.h"
-#include "colmap/base/camera_models.h"
 #include "colmap/base/correspondence_graph.h"
 #include "colmap/base/database.h"
 #include "colmap/base/image.h"
+#include "colmap/camera/models.h"
 #include "colmap/util/types.h"
 
 #include <string>
@@ -52,33 +51,6 @@ namespace colmap {
 // create new reconstruction instances when multiple models are reconstructed.
 class DatabaseCache {
  public:
-  DatabaseCache();
-
-  // Get number of objects.
-  inline size_t NumCameras() const;
-  inline size_t NumImages() const;
-
-  // Get specific objects.
-  inline class Camera& Camera(const camera_t camera_id);
-  inline const class Camera& Camera(const camera_t camera_id) const;
-  inline class Image& Image(const image_t image_id);
-  inline const class Image& Image(const image_t image_id) const;
-
-  // Get all objects.
-  inline const std::unordered_map<camera_t, class Camera>& Cameras() const;
-  inline const std::unordered_map<image_t, class Image>& Images() const;
-
-  // Check whether specific object exists.
-  inline bool ExistsCamera(const camera_t camera_id) const;
-  inline bool ExistsImage(const image_t image_id) const;
-
-  // Get reference to correspondence graph.
-  inline const class CorrespondenceGraph& CorrespondenceGraph() const;
-
-  // Manually add data to cache.
-  void AddCamera(class Camera camera);
-  void AddImage(class Image image);
-
   // Load cameras, images, features, and matches from database.
   //
   // @param database              Source database from which to load data.
@@ -87,16 +59,39 @@ class DatabaseCache {
   // @param ignore_watermarks     Whether to ignore watermark image pairs.
   // @param image_names           Whether to use only load the data for a subset
   //                              of the images. All images are used if empty.
-  void Load(const Database& database,
-            const size_t min_num_matches,
-            const bool ignore_watermarks,
-            const std::unordered_set<std::string>& image_names);
+  static std::shared_ptr<DatabaseCache> Create(
+      const Database& database,
+      size_t min_num_matches,
+      bool ignore_watermarks,
+      const std::unordered_set<std::string>& image_names);
+
+  // Get number of objects.
+  inline size_t NumCameras() const;
+  inline size_t NumImages() const;
+
+  // Get specific objects.
+  inline class Camera& Camera(camera_t camera_id);
+  inline const class Camera& Camera(camera_t camera_id) const;
+  inline class Image& Image(image_t image_id);
+  inline const class Image& Image(image_t image_id) const;
+
+  // Get all objects.
+  inline const std::unordered_map<camera_t, class Camera>& Cameras() const;
+  inline const std::unordered_map<image_t, class Image>& Images() const;
+
+  // Check whether specific object exists.
+  inline bool ExistsCamera(camera_t camera_id) const;
+  inline bool ExistsImage(image_t image_id) const;
+
+  // Get reference to const correspondence graph.
+  inline std::shared_ptr<const class CorrespondenceGraph> CorrespondenceGraph()
+      const;
 
   // Find specific image by name. Note that this uses linear search.
   const class Image* FindImageWithName(const std::string& name) const;
 
  private:
-  class CorrespondenceGraph correspondence_graph_;
+  std::shared_ptr<class CorrespondenceGraph> correspondence_graph_;
 
   std::unordered_map<camera_t, class Camera> cameras_;
   std::unordered_map<image_t, class Image> images_;
@@ -142,11 +137,9 @@ bool DatabaseCache::ExistsImage(const image_t image_id) const {
   return images_.find(image_id) != images_.end();
 }
 
-inline const class CorrespondenceGraph& DatabaseCache::CorrespondenceGraph()
-    const {
+std::shared_ptr<const class CorrespondenceGraph>
+DatabaseCache::CorrespondenceGraph() const {
   return correspondence_graph_;
 }
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_BASE_DATABASE_CACHE_H_

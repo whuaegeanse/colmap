@@ -31,10 +31,10 @@
 
 #include "colmap/controllers/automatic_reconstruction.h"
 
-#include "colmap/base/undistortion.h"
 #include "colmap/controllers/incremental_mapper.h"
 #include "colmap/feature/extraction.h"
 #include "colmap/feature/matching.h"
+#include "colmap/image/undistortion.h"
 #include "colmap/mvs/fusion.h"
 #include "colmap/mvs/meshing.h"
 #include "colmap/mvs/patch_match.h"
@@ -44,9 +44,10 @@
 namespace colmap {
 
 AutomaticReconstructionController::AutomaticReconstructionController(
-    const Options& options, ReconstructionManager* reconstruction_manager)
+    const Options& options,
+    std::shared_ptr<ReconstructionManager> reconstruction_manager)
     : options_(options),
-      reconstruction_manager_(reconstruction_manager),
+      reconstruction_manager_(std::move(reconstruction_manager)),
       active_thread_(nullptr) {
   CHECK(ExistsDir(options_.workspace_path));
   CHECK(ExistsDir(options_.image_path));
@@ -96,6 +97,7 @@ AutomaticReconstructionController::AutomaticReconstructionController(
   reader_options.single_camera = options_.single_camera;
   reader_options.single_camera_per_folder = options_.single_camera_per_folder;
   reader_options.camera_model = options_.camera_model;
+  reader_options.camera_params = options_.camera_params;
 
   option_manager_.sift_extraction->use_gpu = options_.use_gpu;
   option_manager_.sift_matching->use_gpu = options_.use_gpu;
@@ -221,7 +223,7 @@ void AutomaticReconstructionController::RunSparseMapper() {
     }
   }
 
-  IncrementalMapperController mapper(option_manager_.mapper.get(),
+  IncrementalMapperController mapper(option_manager_.mapper,
                                      *option_manager_.image_path,
                                      *option_manager_.database_path,
                                      reconstruction_manager_);
@@ -266,7 +268,7 @@ void AutomaticReconstructionController::RunDenseMapper() {
       undistortion_options.max_image_size =
           option_manager_.patch_match_stereo->max_image_size;
       COLMAPUndistorter undistorter(undistortion_options,
-                                    reconstruction_manager_->Get(i),
+                                    *reconstruction_manager_->Get(i),
                                     *option_manager_.image_path,
                                     dense_path);
       active_thread_ = &undistorter;
@@ -306,7 +308,8 @@ void AutomaticReconstructionController::RunDenseMapper() {
 
     if (!ExistsFile(fused_path)) {
       auto fusion_options = *option_manager_.stereo_fusion;
-      const int num_reg_images = reconstruction_manager_->Get(i).NumRegImages();
+      const int num_reg_images =
+          reconstruction_manager_->Get(i)->NumRegImages();
       fusion_options.min_num_pixels =
           std::min(num_reg_images + 1, fusion_options.min_num_pixels);
       mvs::StereoFusion fuser(

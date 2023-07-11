@@ -31,12 +31,12 @@
 
 #include "colmap/estimators/pose.h"
 
-#include "colmap/base/camera_models.h"
 #include "colmap/base/cost_functions.h"
-#include "colmap/base/essential_matrix.h"
-#include "colmap/base/pose.h"
+#include "colmap/camera/models.h"
 #include "colmap/estimators/absolute_pose.h"
 #include "colmap/estimators/essential_matrix.h"
+#include "colmap/geometry/essential_matrix.h"
+#include "colmap/geometry/pose.h"
 #include "colmap/optim/bundle_adjustment.h"
 #include "colmap/util/matrix.h"
 #include "colmap/util/misc.h"
@@ -158,7 +158,7 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
   *qvec = RotationMatrixToQuaternion(proj_matrix.leftCols<3>());
   *tvec = proj_matrix.rightCols<1>();
 
-  if (IsNaN(*qvec) || IsNaN(*tvec)) {
+  if (qvec->array().isNaN().any() || tvec->array().isNaN().any()) {
     return false;
   }
 
@@ -197,7 +197,7 @@ size_t EstimateRelativePose(const RANSACOptions& ransac_options,
 
   *qvec = RotationMatrixToQuaternion(R);
 
-  if (IsNaN(*qvec) || IsNaN(*tvec)) {
+  if (qvec->array().isNaN().any() || tvec->array().isNaN().any()) {
     return 0;
   }
 

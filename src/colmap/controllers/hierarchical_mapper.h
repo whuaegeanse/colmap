@@ -29,13 +29,14 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_CONTROLLERS_HIERARCHICAL_MAPPER_H_
-#define COLMAP_SRC_CONTROLLERS_HIERARCHICAL_MAPPER_H_
+#pragma once
 
 #include "colmap/base/reconstruction_manager.h"
 #include "colmap/base/scene_clustering.h"
 #include "colmap/controllers/incremental_mapper.h"
 #include "colmap/util/threading.h"
+
+#include <memory>
 
 namespace colmap {
 
@@ -65,18 +66,16 @@ class HierarchicalMapperController : public Thread {
   HierarchicalMapperController(
       const Options& options,
       const SceneClustering::Options& clustering_options,
-      const IncrementalMapperOptions& mapper_options,
-      ReconstructionManager* reconstruction_manager);
+      std::shared_ptr<const IncrementalMapperOptions> mapper_options,
+      std::shared_ptr<ReconstructionManager> reconstruction_manager);
 
  private:
   void Run() override;
 
   const Options options_;
   const SceneClustering::Options clustering_options_;
-  const IncrementalMapperOptions mapper_options_;
-  ReconstructionManager* reconstruction_manager_;
+  const std::shared_ptr<const IncrementalMapperOptions> mapper_options_;
+  std::shared_ptr<ReconstructionManager> reconstruction_manager_;
 };
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_CONTROLLERS_HIERARCHICAL_MAPPER_H_

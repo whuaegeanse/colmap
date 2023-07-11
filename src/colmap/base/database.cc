@@ -36,6 +36,7 @@
 #include "colmap/util/version.h"
 
 #include <fstream>
+#include <memory>
 
 namespace colmap {
 namespace {
@@ -256,6 +257,8 @@ Image ReadImageRow(sqlite3_stmt* sql_stmt) {
 
 const size_t Database::kMaxNumImages =
     static_cast<size_t>(std::numeric_limits<int32_t>::max());
+
+const std::string Database::kInMemoryDatabasePath = ":memory:";
 
 std::mutex Database::update_schema_mutex_;
 

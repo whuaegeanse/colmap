@@ -29,8 +29,7 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_ESTIMATORS_TWO_VIEW_GEOMETRY_H_
-#define COLMAP_SRC_ESTIMATORS_TWO_VIEW_GEOMETRY_H_
+#pragma once
 
 #include "colmap/base/camera.h"
 #include "colmap/feature/types.h"
@@ -242,7 +241,7 @@ struct TwoViewGeometry {
                               const std::vector<Eigen::Vector2d>& points1,
                               const Camera& camera2,
                               const std::vector<Eigen::Vector2d>& points2,
-                              const size_t num_inliers,
+                              size_t num_inliers,
                               const std::vector<char>& inlier_mask,
                               const Options& options);
 
@@ -268,5 +267,3 @@ struct TwoViewGeometry {
 };
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_ESTIMATORS_TWO_VIEW_GEOMETRY_H_

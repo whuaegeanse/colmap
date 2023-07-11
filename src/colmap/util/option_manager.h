@@ -29,8 +29,7 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_UTIL_OPTION_MANAGER_H_
-#define COLMAP_SRC_UTIL_OPTION_MANAGER_H_
+#pragma once
 
 #include "colmap/util/logging.h"
 
@@ -62,7 +61,7 @@ struct DelaunayMeshingOptions;
 
 class OptionManager {
  public:
-  OptionManager(bool add_project_options = true);
+  explicit OptionManager(bool add_project_options = true);
 
   // Create "optimal" set of options for different reconstruction scenarios.
   // Note that the existing options are modified, so if your parameters are
@@ -110,11 +109,11 @@ class OptionManager {
                         const std::string& help_text = "");
 
   void Reset();
-  void ResetOptions(const bool reset_paths);
+  void ResetOptions(bool reset_paths);
 
   bool Check();
 
-  void Parse(const int argc, char** argv);
+  void Parse(int argc, char** argv);
   bool Read(const std::string& path);
   bool ReRead(const std::string& path);
   void Write(const std::string& path) const;
@@ -246,5 +245,3 @@ void OptionManager::RegisterOption(const std::string& name, const T* option) {
 }
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_UTIL_OPTION_MANAGER_H_

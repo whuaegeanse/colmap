@@ -29,8 +29,7 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#ifndef COLMAP_SRC_ESTIMATORS_COORDINATE_AXES_H_
-#define COLMAP_SRC_ESTIMATORS_COORDINATE_AXES_H_
+#pragma once
 
 #include "colmap/base/reconstruction.h"
 
@@ -55,8 +54,7 @@ struct ManhattanWorldFrameEstimationOptions {
 // the majority of images is assumed to have the gravity vector aligned with an
 // upright image plane.
 Eigen::Vector3d EstimateGravityVectorFromImageOrientation(
-    const Reconstruction& reconstruction,
-    const double max_axis_distance = 0.05);
+    const Reconstruction& reconstruction, double max_axis_distance = 0.05);
 
 // Estimate the coordinate frame of the reconstruction assuming a Manhattan
 // world by finding the major vanishing points in each image. This function
@@ -86,5 +84,3 @@ void AlignToENUPlane(Reconstruction* recon,
                      bool unscaled);
 
 }  // namespace colmap
-
-#endif  // COLMAP_SRC_ESTIMATORS_COORDINATE_AXES_H_
