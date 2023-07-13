@@ -29,42 +29,40 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#include "colmap/optim/combination_sampler.h"
+#include "colmap/util/testing.h"
 
-#include "colmap/math/math.h"
-#include "colmap/math/random.h"
+#include <mutex>
+#include <set>
 
-#include <numeric>
+#include <boost/filesystem.hpp>
+#include <glog/logging.h>
+#include <gtest/gtest.h>
 
 namespace colmap {
 
-CombinationSampler::CombinationSampler(const size_t num_samples)
-    : num_samples_(num_samples) {}
+std::string CreateTestDir() {
+  const testing::TestInfo* test_info =
+      CHECK_NOTNULL(testing::UnitTest::GetInstance()->current_test_info());
+  std::ostringstream test_name_stream;
+  test_name_stream << test_info->test_suite_name() << "." << test_info->name();
+  const std::string test_name = test_name_stream.str();
 
-void CombinationSampler::Initialize(const size_t total_num_samples) {
-  CHECK_LE(num_samples_, total_num_samples);
-  total_sample_idxs_.resize(total_num_samples);
-  // Note that the samples must be in increasing order for `NextCombination`.
-  std::iota(total_sample_idxs_.begin(), total_sample_idxs_.end(), 0);
-}
+  const boost::filesystem::path test_dir =
+      boost::filesystem::path("colmap_test_tmp_test_data") / test_name;
 
-size_t CombinationSampler::MaxNumSamples() {
-  return NChooseK(total_sample_idxs_.size(), num_samples_);
-}
-
-void CombinationSampler::Sample(std::vector<size_t>* sampled_idxs) {
-  sampled_idxs->resize(num_samples_);
-  for (size_t i = 0; i < num_samples_; ++i) {
-    (*sampled_idxs)[i] = total_sample_idxs_[i];
+  // Create directory once. Cleanup artifacts from previous test runs.
+  static std::mutex mutex;
+  std::lock_guard<std::mutex> lock(mutex);
+  static std::set<std::string> existing_test_names;
+  if (existing_test_names.count(test_name) == 0) {
+    if (boost::filesystem::is_directory(test_dir)) {
+      boost::filesystem::remove_all(test_dir);
+    }
+    boost::filesystem::create_directories(test_dir);
   }
+  existing_test_names.insert(test_name);
 
-  if (!NextCombination(total_sample_idxs_.begin(),
-                       total_sample_idxs_.begin() + num_samples_,
-                       total_sample_idxs_.end())) {
-    // Reached all possible combinations, so reset to original state.
-    // Note that the samples must be in increasing order for `NextCombination`.
-    std::iota(total_sample_idxs_.begin(), total_sample_idxs_.end(), 0);
-  }
+  return test_dir.string();
 }
 
 }  // namespace colmap

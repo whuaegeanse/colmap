@@ -34,7 +34,7 @@
 #include "colmap/estimators/similarity_transform.h"
 #include "colmap/geometry/pose.h"
 #include "colmap/geometry/similarity_transform.h"
-#include "colmap/util/random.h"
+#include "colmap/math/random.h"
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
@@ -67,15 +67,14 @@ TEST(LORANSAC, SimilarityTransform) {
   std::vector<Eigen::Vector3d> dst;
   for (size_t i = 0; i < num_samples; ++i) {
     src.emplace_back(i, std::sqrt(i) + 2, std::sqrt(2 * i + 2));
-    dst.push_back(src.back());
-    orig_tform.TransformPoint(&dst.back());
+    dst.push_back(orig_tform * src.back());
   }
 
   // Add some faulty data.
   for (size_t i = 0; i < num_outliers; ++i) {
-    dst[i] = Eigen::Vector3d(RandomReal(-3000.0, -2000.0),
-                             RandomReal(-4000.0, -3000.0),
-                             RandomReal(-5000.0, -4000.0));
+    dst[i] = Eigen::Vector3d(RandomUniformReal(-3000.0, -2000.0),
+                             RandomUniformReal(-4000.0, -3000.0),
+                             RandomUniformReal(-5000.0, -4000.0));
   }
 
   // Robustly estimate transformation using RANSAC.

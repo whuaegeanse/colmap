@@ -34,8 +34,8 @@
 #include "colmap/estimators/essential_matrix.h"
 #include "colmap/geometry/pose.h"
 #include "colmap/geometry/similarity_transform.h"
+#include "colmap/math/random.h"
 #include "colmap/optim/ransac.h"
-#include "colmap/util/random.h"
 
 #include <Eigen/Core>
 #include <gtest/gtest.h>
@@ -70,9 +70,7 @@ TEST(AbsolutePose, P3P) {
       // Project points to camera coordinate system.
       std::vector<Eigen::Vector2d> points2D;
       for (size_t i = 0; i < points3D.size(); ++i) {
-        Eigen::Vector3d point3D_camera = points3D[i];
-        orig_tform.TransformPoint(&point3D_camera);
-        points2D.push_back(point3D_camera.hnormalized());
+        points2D.push_back((orig_tform * points3D[i]).hnormalized());
       }
 
       RANSACOptions options;
@@ -132,9 +130,7 @@ TEST(AbsolutePose, EPNP) {
       // Project points to camera coordinate system.
       std::vector<Eigen::Vector2d> points2D;
       for (size_t i = 0; i < points3D.size(); ++i) {
-        Eigen::Vector3d point3D_camera = points3D[i];
-        orig_tform.TransformPoint(&point3D_camera);
-        points2D.push_back(point3D_camera.hnormalized());
+        points2D.push_back((orig_tform * points3D[i]).hnormalized());
       }
 
       RANSACOptions options;

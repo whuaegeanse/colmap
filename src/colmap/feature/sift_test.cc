@@ -39,9 +39,9 @@
 
 #include "colmap/feature/sift.h"
 #include "colmap/feature/utils.h"
-#include "colmap/util/math.h"
+#include "colmap/math/math.h"
+#include "colmap/math/random.h"
 #include "colmap/util/opengl_utils.h"
-#include "colmap/util/random.h"
 
 #include "lib/SiftGPU/SiftGPU.h"
 
@@ -247,7 +247,7 @@ FeatureDescriptors CreateRandomFeatureDescriptors(const size_t num_features) {
   Eigen::MatrixXf descriptors(num_features, 128);
   for (size_t i = 0; i < num_features; ++i) {
     for (size_t j = 0; j < 128; ++j) {
-      descriptors(i, j) = std::pow(RandomReal(0.0f, 1.0f), 2);
+      descriptors(i, j) = std::pow(RandomUniformReal(0.0f, 1.0f), 2);
     }
   }
   return FeatureDescriptorsToUnsignedByte(

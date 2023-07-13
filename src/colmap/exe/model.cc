@@ -72,9 +72,9 @@ Eigen::Vector3d TransformLatLonAltToModelCoords(
   // set the altitude to 0 when converting from LLA to ECEF and then we use the
   // altitude at the end, after scaling, to set it as the z coordinate in the
   // ENU frame.
-  Eigen::Vector3d xyz = GPSTransform(GPSTransform::WGS84)
-                            .EllToXYZ({Eigen::Vector3d(lat, lon, 0.0)})[0];
-  tform.TransformPoint(&xyz);
+  Eigen::Vector3d xyz =
+      tform * GPSTransform(GPSTransform::WGS84)
+                  .EllToXYZ({Eigen::Vector3d(lat, lon, 0.0)})[0];
   xyz(2) = tform.Scale() * alt;
   return xyz;
 }
@@ -171,23 +171,17 @@ void ReadDatabaseCameraLocations(const std::string& database_path,
 }
 
 void WriteComparisonErrorsCSV(const std::string& path,
-                              const std::vector<double>& rotation_errors,
-                              const std::vector<double>& translation_errors,
-                              const std::vector<double>& proj_center_errors) {
-  CHECK_EQ(rotation_errors.size(), translation_errors.size());
-  CHECK_EQ(rotation_errors.size(), proj_center_errors.size());
-
+                              const std::vector<ImageAlignmentError>& errors) {
   std::ofstream file(path, std::ios::trunc);
   CHECK(file.is_open()) << path;
 
   file.precision(17);
   file << "# Model comparison pose errors: one entry per common image"
        << std::endl;
-  file << "# <rotation error (deg)>, <translation error>, <proj center error>"
-       << std::endl;
-  for (size_t i = 0; i < rotation_errors.size(); ++i) {
-    file << rotation_errors[i] << ", " << translation_errors[i] << ", "
-         << proj_center_errors[i] << std::endl;
+  file << "# <rotation error (deg)>, <proj center error>" << std::endl;
+  for (size_t i = 0; i < errors.size(); ++i) {
+    file << errors[i].rotation_error_deg << ", " << errors[i].proj_center_error
+         << std::endl;
   }
 }
 
@@ -207,15 +201,18 @@ void PrintErrorStats(std::ostream& out, std::vector<double>& vals) {
 }
 
 void PrintComparisonSummary(std::ostream& out,
-                            std::vector<double>& rotation_errors,
-                            std::vector<double>& translation_errors,
-                            std::vector<double>& proj_center_errors) {
-  PrintHeading2("Image pose error summary");
-  out << std::endl << "Rotation angular errors (degrees)" << std::endl;
-  PrintErrorStats(out, rotation_errors);
-  out << std::endl << "Translation distance errors" << std::endl;
-  PrintErrorStats(out, translation_errors);
-  out << std::endl << "Projection center distance errors" << std::endl;
+                            const std::vector<ImageAlignmentError>& errors) {
+  std::vector<double> rotation_errors_deg;
+  rotation_errors_deg.reserve(errors.size());
+  std::vector<double> proj_center_errors;
+  proj_center_errors.reserve(errors.size());
+  for (const auto& error : errors) {
+    rotation_errors_deg.push_back(error.rotation_error_deg);
+    proj_center_errors.push_back(error.proj_center_error);
+  }
+  out << std::endl << "Rotation errors (degrees)" << std::endl;
+  PrintErrorStats(out, rotation_errors_deg);
+  out << std::endl << "Projection center errors" << std::endl;
   PrintErrorStats(out, proj_center_errors);
 }
 
@@ -273,7 +270,6 @@ int RunModelAligner(int argc, char** argv) {
   std::string alignment_type = "custom";
   int min_common_images = 3;
   bool robust_alignment = true;
-  bool estimate_scale = true;
   RANSACOptions ransac_options;
 
   OptionManager options;
@@ -289,7 +285,6 @@ int RunModelAligner(int argc, char** argv) {
       &alignment_type,
       "{plane, ecef, enu, enu-plane, enu-plane-unscaled, custom}");
   options.AddDefaultOption("min_common_images", &min_common_images);
-  options.AddDefaultOption("estimate_scale", &estimate_scale);
   options.AddDefaultOption("robust_alignment", &robust_alignment);
   options.AddDefaultOption("robust_alignment_max_error",
                            &ransac_options.max_error);
@@ -360,28 +355,15 @@ int RunModelAligner(int argc, char** argv) {
                               ref_image_names.size())
               << std::endl;
 
-    if (estimate_scale) {
-      if (robust_alignment) {
-        alignment_success = reconstruction.AlignRobust(ref_image_names,
-                                                       ref_locations,
-                                                       min_common_images,
-                                                       ransac_options,
-                                                       &tform);
-      } else {
-        alignment_success = reconstruction.Align(
-            ref_image_names, ref_locations, min_common_images, &tform);
-      }
+    if (robust_alignment) {
+      alignment_success = reconstruction.AlignRobust(ref_image_names,
+                                                     ref_locations,
+                                                     min_common_images,
+                                                     ransac_options,
+                                                     &tform);
     } else {
-      if (robust_alignment) {
-        alignment_success = reconstruction.AlignRobust<false>(ref_image_names,
-                                                              ref_locations,
-                                                              min_common_images,
-                                                              ransac_options,
-                                                              &tform);
-      } else {
-        alignment_success = reconstruction.Align<false>(
-            ref_image_names, ref_locations, min_common_images, &tform);
-      }
+      alignment_success = reconstruction.Align(
+          ref_image_names, ref_locations, min_common_images, &tform);
     }
 
     std::vector<double> errors;
@@ -437,7 +419,7 @@ int RunModelAligner(int argc, char** argv) {
     std::cout << "=> Alignment succeeded" << std::endl;
     reconstruction.Write(output_path);
     if (!transform_path.empty()) {
-      tform.Write(transform_path);
+      tform.ToFile(transform_path);
     }
     return EXIT_SUCCESS;
   } else {
@@ -551,7 +533,7 @@ int RunModelComparer(int argc, char** argv) {
   std::cout << StringPrintf("Common images: %d", common_image_ids.size())
             << std::endl;
 
-  Eigen::Matrix3x4d alignment;
+  SimilarityTransform3 tgt_from_src;
   bool success = false;
   if (alignment_error == "reprojection") {
     success = ComputeAlignmentBetweenReconstructions(
@@ -559,13 +541,13 @@ int RunModelComparer(int argc, char** argv) {
         reconstruction2,
         /*min_inlier_observations=*/min_inlier_observations,
         /*max_reproj_error=*/max_reproj_error,
-        &alignment);
+        &tgt_from_src);
   } else if (alignment_error == "proj_center") {
     success = ComputeAlignmentBetweenReconstructions(
         reconstruction1,
         reconstruction2,
         /*max_proj_center_error=*/max_proj_center_error,
-        &alignment);
+        &tgt_from_src);
   } else {
     std::cout << "ERROR: Invalid alignment_error specified." << std::endl;
     return EXIT_FAILURE;
@@ -576,53 +558,22 @@ int RunModelComparer(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  const SimilarityTransform3 tform(alignment);
   std::cout << "Computed alignment transform:" << std::endl
-            << tform.Matrix() << std::endl;
+            << tgt_from_src.Matrix() << std::endl;
 
-  const size_t num_images = common_image_ids.size();
-  std::vector<double> rotation_errors(num_images,
-                                      std::numeric_limits<double>::infinity());
-  std::vector<double> translation_errors(
-      num_images, std::numeric_limits<double>::infinity());
-  std::vector<double> proj_center_errors(
-      num_images, std::numeric_limits<double>::infinity());
-  for (size_t i = 0; i < num_images; ++i) {
-    const image_t image_id = common_image_ids[i];
-    Image& image1 = reconstruction1.Image(image_id);
-    tform.TransformPose(&image1.Qvec(), &image1.Tvec());
-    const Image& image2 = reconstruction2.Image(image_id);
+  const std::vector<ImageAlignmentError> errors = ComputeImageAlignmentError(
+      reconstruction1, reconstruction2, tgt_from_src);
 
-    const Eigen::Vector4d normalized_qvec1 = NormalizeQuaternion(image1.Qvec());
-    const Eigen::Quaterniond quat1(normalized_qvec1(0),
-                                   normalized_qvec1(1),
-                                   normalized_qvec1(2),
-                                   normalized_qvec1(3));
-    const Eigen::Vector4d normalized_qvec2 = NormalizeQuaternion(image2.Qvec());
-    const Eigen::Quaterniond quat2(normalized_qvec2(0),
-                                   normalized_qvec2(1),
-                                   normalized_qvec2(2),
-                                   normalized_qvec2(3));
-
-    rotation_errors[i] = RadToDeg(quat1.angularDistance(quat2));
-    translation_errors[i] = (image1.Tvec() - image2.Tvec()).norm();
-    proj_center_errors[i] =
-        (image1.ProjectionCenter() - image2.ProjectionCenter()).norm();
-  }
-
-  PrintComparisonSummary(
-      std::cout, rotation_errors, translation_errors, proj_center_errors);
-
+  PrintHeading2("Image alignment error summary");
+  PrintComparisonSummary(std::cout, errors);
   if (!output_path.empty()) {
     const std::string errors_path = JoinPaths(output_path, "errors.csv");
-    WriteComparisonErrorsCSV(
-        errors_path, rotation_errors, translation_errors, proj_center_errors);
+    WriteComparisonErrorsCSV(errors_path, errors);
     const std::string summary_path =
         JoinPaths(output_path, "errors_summary.txt");
     std::ofstream file(summary_path, std::ios::trunc);
     CHECK(file.is_open()) << summary_path;
-    PrintComparisonSummary(
-        file, rotation_errors, translation_errors, proj_center_errors);
+    PrintComparisonSummary(file, errors);
   }
 
   return EXIT_SUCCESS;

@@ -118,17 +118,44 @@ jobs:
       ninja -k $(numAllowedNinjaErrors)
     displayName: Configure and build
 
+  - ${{ if ne(parameters.cmakeBuildType, 'ClangTidy') }}:
+    - script: |
+        export DISPLAY=":99.0"
+        export QT_QPA_PLATFORM="offscreen"
+        Xvfb :99 &
+        sleep 3
+        cd build
+        ctest -E "$(ctestExclusions)"
+        tests_pass=$?
+        if [ $tests_pass -ne 0 ]; then
+            echo "Tests failed, rerunning with verbose output"
+            ctest --rerun-failed --output-on-failure
+        fi
+        exit $tests_pass
+      displayName: Run tests
+
+  - ${{ if eq(parameters.e2eTestsEnabled, true) }}:
+    - script: |
+        export DISPLAY=":99.0"
+        export QT_QPA_PLATFORM="offscreen"
+        Xvfb :99 &
+        sleep 3
+        sudo apt install 7zip
+        mkdir eth3d_benchmark
+        # Error thresholds in degrees and meters,
+        # as the ETH3D groundtruth has metric scale.
+        python ./scripts/python/benchmark_eth3d.py \
+            --workspace_path ./eth3d_benchmark \
+            --colmap_path ./build/src/colmap/exe/colmap \
+            --dataset_names boulders,terrace,door \
+            --use_gpu false \
+            --max_rotation_error 1.0 \
+            --max_proj_center_error 0.05
+      displayName: Run E2E tests
+
   - script: |
-      export DISPLAY=":99.0"
-      export QT_QPA_PLATFORM="offscreen"
-      Xvfb :99 &
-      sleep 3
-      cd build
-      ctest -E "$(ctestExclusions)"
-      tests_pass=$?
-      if [ $tests_pass -ne 0 ]; then
-          echo "Tests failed, rerunning with verbose output"
-          ctest --rerun-failed --output-on-failure
-      fi
-      exit $tests_pass
-    displayName: 'Run tests'
+      set -x
+      ccache --show-stats
+      ccache --evict-older-than 1d
+      ccache --show-stats
+    displayName: Cleanup ccache
