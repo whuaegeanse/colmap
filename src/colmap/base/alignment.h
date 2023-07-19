@@ -31,54 +31,18 @@
 
 #pragma once
 
-#include "colmap/estimators/similarity_transform.h"
-#include "colmap/util/types.h"
-
-#include <vector>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
+#include "colmap/base/reconstruction.h"
+#include "colmap/geometry/sim3.h"
 
 namespace colmap {
 
-struct RANSACOptions;
-class Reconstruction;
-
-// 3D similarity transformation with 7 degrees of freedom.
-class SimilarityTransform3 {
- public:
-  SimilarityTransform3();
-
-  explicit SimilarityTransform3(const Eigen::Matrix3x4d& matrix);
-
-  explicit SimilarityTransform3(
-      const Eigen::Transform<double, 3, Eigen::Affine>& transform);
-
-  SimilarityTransform3(double scale,
-                       const Eigen::Vector4d& qvec,
-                       const Eigen::Vector3d& tvec);
-
-  void Write(const std::string& path);
-
-  template <bool kEstimateScale = true>
-  bool Estimate(const std::vector<Eigen::Vector3d>& src,
-                const std::vector<Eigen::Vector3d>& dst);
-
-  SimilarityTransform3 Inverse() const;
-
-  void TransformPoint(Eigen::Vector3d* xyz) const;
-  void TransformPose(Eigen::Vector4d* qvec, Eigen::Vector3d* tvec) const;
-
-  Eigen::Matrix4d Matrix() const;
-  double Scale() const;
-  Eigen::Vector4d Rotation() const;
-  Eigen::Vector3d Translation() const;
-
-  static SimilarityTransform3 FromFile(const std::string& path);
-
- private:
-  Eigen::Transform<double, 3, Eigen::Affine> transform_;
-};
+bool AlignReconstructionToLocations(
+    const Reconstruction& reconstruction,
+    const std::vector<std::string>& image_names,
+    const std::vector<Eigen::Vector3d>& locations,
+    int min_common_images,
+    const RANSACOptions& ransac_options,
+    Sim3d* tform);
 
 // Robustly compute alignment between reconstructions by finding images that
 // are registered in both reconstructions. The alignment is then estimated
@@ -86,40 +50,36 @@ class SimilarityTransform3 {
 // is verified by reprojecting common 3D point observations.
 // The min_inlier_observations threshold determines how many observations
 // in a common image must reproject within the given threshold.
-bool ComputeAlignmentBetweenReconstructions(
-    const Reconstruction& src_reconstruction,
-    const Reconstruction& ref_reconstruction,
-    double min_inlier_observations,
-    double max_reproj_error,
-    Eigen::Matrix3x4d* alignment);
+bool AlignReconstructions(const Reconstruction& src_reconstruction,
+                          const Reconstruction& tgt_reconstruction,
+                          double min_inlier_observations,
+                          double max_reproj_error,
+                          Sim3d* tgtFromSrc);
 
 // Robustly compute alignment between reconstructions by finding images that
 // are registered in both reconstructions. The alignment is then estimated
 // robustly inside RANSAC from corresponding projection centers and by
 // minimizing the Euclidean distance between them in world space.
-bool ComputeAlignmentBetweenReconstructions(
+bool AlignReconstructions(const Reconstruction& src_reconstruction,
+                          const Reconstruction& tgt_reconstruction,
+                          double max_proj_center_error,
+                          Sim3d* tgtFromSrc);
+
+// Compute image alignment errors in the target coordinate frame.
+struct ImageAlignmentError {
+  image_t image_id = kInvalidImageId;
+  double rotation_error_deg = -1;
+  double proj_center_error = -1;
+};
+std::vector<ImageAlignmentError> ComputeImageAlignmentError(
     const Reconstruction& src_reconstruction,
-    const Reconstruction& ref_reconstruction,
-    double max_proj_center_error,
-    Eigen::Matrix3x4d* alignment);
+    const Reconstruction& tgt_reconstruction,
+    const Sim3d& tgtFromSrc);
 
-////////////////////////////////////////////////////////////////////////////////
-// Implementation
-////////////////////////////////////////////////////////////////////////////////
-
-template <bool kEstimateScale>
-bool SimilarityTransform3::Estimate(const std::vector<Eigen::Vector3d>& src,
-                                    const std::vector<Eigen::Vector3d>& dst) {
-  const auto results =
-      SimilarityTransformEstimator<3, kEstimateScale>().Estimate(src, dst);
-  if (results.empty()) {
-    return false;
-  }
-
-  CHECK_EQ(results.size(), 1);
-  transform_.matrix().topLeftCorner<3, 4>() = results[0];
-
-  return true;
-}
+// Aligns the source to the target reconstruction and merges cameras, images,
+// points3D into the target using the alignment. Returns false on failure.
+bool MergeReconstructions(double max_reproj_error,
+                          const Reconstruction& src_reconstruction,
+                          Reconstruction* tgt_reconstruction);
 
 }  // namespace colmap

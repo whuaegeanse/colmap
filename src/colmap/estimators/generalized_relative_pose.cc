@@ -62,8 +62,8 @@
 #include "colmap/geometry/pose.h"
 #include "colmap/geometry/projection.h"
 #include "colmap/geometry/triangulation.h"
+#include "colmap/math/random.h"
 #include "colmap/util/logging.h"
-#include "colmap/util/random.h"
 
 namespace colmap {
 namespace {
@@ -552,9 +552,12 @@ std::vector<GR6PEstimator::M_t> GR6PEstimator::Estimate(
       rotation = initial_rotation;
     } else {
       const Eigen::Vector3d perturbation(
-          RandomReal<double>(-perturbation_amplitude, perturbation_amplitude),
-          RandomReal<double>(-perturbation_amplitude, perturbation_amplitude),
-          RandomReal<double>(-perturbation_amplitude, perturbation_amplitude));
+          RandomUniformReal<double>(-perturbation_amplitude,
+                                    perturbation_amplitude),
+          RandomUniformReal<double>(-perturbation_amplitude,
+                                    perturbation_amplitude),
+          RandomUniformReal<double>(-perturbation_amplitude,
+                                    perturbation_amplitude));
       rotation = initial_rotation + perturbation;
     }
 

@@ -34,7 +34,7 @@
 #include "colmap/base/correspondence_graph.h"
 #include "colmap/camera/models.h"
 #include "colmap/geometry/pose.h"
-#include "colmap/geometry/similarity_transform.h"
+#include "colmap/geometry/sim3.h"
 
 #include <gtest/gtest.h>
 
@@ -359,8 +359,8 @@ TEST(Reconstruction, Transform) {
       reconstruction.AddPoint3D(Eigen::Vector3d(1, 1, 1), Track());
   reconstruction.AddObservation(point3D_id, TrackElement(1, 1));
   reconstruction.AddObservation(point3D_id, TrackElement(2, 1));
-  reconstruction.Transform(SimilarityTransform3(
-      2, ComposeIdentityQuaternion(), Eigen::Vector3d(0, 1, 2)));
+  reconstruction.Transform(
+      Sim3d(2, Eigen::Quaterniond::Identity(), Eigen::Vector3d(0, 1, 2)));
   EXPECT_EQ(reconstruction.Image(1).ProjectionCenter(),
             Eigen::Vector3d(0, 1, 2));
   EXPECT_EQ(reconstruction.Point3D(point3D_id).XYZ(), Eigen::Vector3d(2, 3, 4));
@@ -586,6 +586,23 @@ TEST(Reconstruction, ComputeMeanReprojectionError) {
   EXPECT_EQ(reconstruction.ComputeMeanReprojectionError(), 1);
   reconstruction.Point3D(point3D_id1).SetError(2.0);
   EXPECT_EQ(reconstruction.ComputeMeanReprojectionError(), 2.0);
+}
+
+TEST(Reconstruction, UpdatePoint3DErrors) {
+  Reconstruction reconstruction;
+  GenerateReconstruction(2, &reconstruction);
+  EXPECT_EQ(reconstruction.ComputeMeanReprojectionError(), 0);
+  Track track;
+  track.AddElement(1, 0);
+  reconstruction.Image(1).Point2D(0).SetXY(Eigen::Vector2d(0.5, 0.5));
+  const point3D_t point3D_id =
+      reconstruction.AddPoint3D(Eigen::Vector3d(0, 0, 1), track);
+  EXPECT_EQ(reconstruction.Point3D(point3D_id).Error(), -1);
+  reconstruction.UpdatePoint3DErrors();
+  EXPECT_EQ(reconstruction.Point3D(point3D_id).Error(), 0);
+  reconstruction.Point3D(point3D_id).SetXYZ(Eigen::Vector3d(0, 1, 1));
+  reconstruction.UpdatePoint3DErrors();
+  EXPECT_EQ(reconstruction.Point3D(point3D_id).Error(), 1);
 }
 
 }  // namespace colmap

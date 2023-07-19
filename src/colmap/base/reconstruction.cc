@@ -32,11 +32,13 @@
 #include "colmap/base/reconstruction.h"
 
 #include "colmap/base/database_cache.h"
+#include "colmap/estimators/similarity_transform.h"
 #include "colmap/geometry/gps.h"
 #include "colmap/geometry/pose.h"
 #include "colmap/geometry/projection.h"
 #include "colmap/geometry/triangulation.h"
 #include "colmap/image/bitmap.h"
+#include "colmap/optim/loransac.h"
 #include "colmap/util/misc.h"
 #include "colmap/util/ply.h"
 
@@ -343,8 +345,8 @@ void Reconstruction::Normalize(const double extent,
     scale = extent / old_extent;
   }
 
-  SimilarityTransform3 tform(
-      scale, ComposeIdentityQuaternion(), -scale * std::get<2>(bound));
+  Sim3d tform(
+      scale, Eigen::Quaterniond::Identity(), -scale * std::get<2>(bound));
   Transform(tform);
 }
 
@@ -427,12 +429,12 @@ Reconstruction::ComputeBoundsAndCentroid(const double p0,
   return std::make_tuple(bbox_min, bbox_max, mean_coord);
 }
 
-void Reconstruction::Transform(const SimilarityTransform3& tform) {
+void Reconstruction::Transform(const Sim3d& tform) {
   for (auto& image : images_) {
     tform.TransformPose(&image.second.Qvec(), &image.second.Tvec());
   }
   for (auto& point3D : points3D_) {
-    tform.TransformPoint(&point3D.second.XYZ());
+    point3D.second.XYZ() = tform * point3D.second.XYZ();
   }
 }
 
@@ -462,98 +464,6 @@ Reconstruction Reconstruction::Crop(
     }
   }
   return reconstruction;
-}
-
-bool Reconstruction::Merge(const Reconstruction& reconstruction,
-                           const double max_reproj_error) {
-  const double kMinInlierObservations = 0.3;
-
-  Eigen::Matrix3x4d alignment;
-  if (!ComputeAlignmentBetweenReconstructions(reconstruction,
-                                              *this,
-                                              kMinInlierObservations,
-                                              max_reproj_error,
-                                              &alignment)) {
-    return false;
-  }
-
-  const SimilarityTransform3 tform(alignment);
-
-  // Find common and missing images in the two reconstructions.
-
-  std::unordered_set<image_t> common_image_ids;
-  common_image_ids.reserve(reconstruction.NumRegImages());
-  std::unordered_set<image_t> missing_image_ids;
-  missing_image_ids.reserve(reconstruction.NumRegImages());
-
-  for (const auto& image_id : reconstruction.RegImageIds()) {
-    if (ExistsImage(image_id)) {
-      common_image_ids.insert(image_id);
-    } else {
-      missing_image_ids.insert(image_id);
-    }
-  }
-
-  // Register the missing images in this reconstruction.
-
-  for (const auto image_id : missing_image_ids) {
-    auto reg_image = reconstruction.Image(image_id);
-    reg_image.SetRegistered(false);
-    AddImage(reg_image);
-    RegisterImage(image_id);
-    if (!ExistsCamera(reg_image.CameraId())) {
-      AddCamera(reconstruction.Camera(reg_image.CameraId()));
-    }
-    auto& image = Image(image_id);
-    tform.TransformPose(&image.Qvec(), &image.Tvec());
-  }
-
-  // Merge the two point clouds using the following two rules:
-  //    - copy points to this reconstruction with non-conflicting tracks,
-  //      i.e. points that do not have an already triangulated observation
-  //      in this reconstruction.
-  //    - merge tracks that are unambiguous, i.e. only merge points in the two
-  //      reconstructions if they have a one-to-one mapping.
-  // Note that in both cases no cheirality or reprojection test is performed.
-
-  for (const auto& point3D : reconstruction.Points3D()) {
-    Track new_track;
-    Track old_track;
-    std::unordered_set<point3D_t> old_point3D_ids;
-    for (const auto& track_el : point3D.second.Track().Elements()) {
-      if (common_image_ids.count(track_el.image_id) > 0) {
-        const auto& point2D =
-            Image(track_el.image_id).Point2D(track_el.point2D_idx);
-        if (point2D.HasPoint3D()) {
-          old_track.AddElement(track_el);
-          old_point3D_ids.insert(point2D.Point3DId());
-        } else {
-          new_track.AddElement(track_el);
-        }
-      } else if (missing_image_ids.count(track_el.image_id) > 0) {
-        Image(track_el.image_id).ResetPoint3DForPoint2D(track_el.point2D_idx);
-        new_track.AddElement(track_el);
-      }
-    }
-
-    const bool create_new_point = new_track.Length() >= 2;
-    const bool merge_new_and_old_point =
-        (new_track.Length() + old_track.Length()) >= 2 &&
-        old_point3D_ids.size() == 1;
-    if (create_new_point || merge_new_and_old_point) {
-      Eigen::Vector3d xyz = point3D.second.XYZ();
-      tform.TransformPoint(&xyz);
-      const auto point3D_id =
-          AddPoint3D(xyz, new_track, point3D.second.Color());
-      if (old_point3D_ids.size() == 1) {
-        MergePoints3D(point3D_id, *old_point3D_ids.begin());
-      }
-    }
-  }
-
-  FilterPoints3DWithLargeReprojectionError(max_reproj_error, Point3DIds());
-
-  return true;
 }
 
 const class Image* Reconstruction::FindImageWithName(
@@ -737,6 +647,28 @@ double Reconstruction::ComputeMeanReprojectionError() const {
     return 0.0;
   } else {
     return error_sum / num_valid_errors;
+  }
+}
+
+void Reconstruction::UpdatePoint3DErrors() {
+  for (auto& point3D : points3D_) {
+    if (point3D.second.Track().Length() == 0) {
+      point3D.second.SetError(0);
+      continue;
+    }
+    double error_sum = 0;
+    for (const auto& track_el : point3D.second.Track().Elements()) {
+      const auto& image = Image(track_el.image_id);
+      const auto& point2D = image.Point2D(track_el.point2D_idx);
+      const auto& camera = Camera(image.CameraId());
+      error_sum +=
+          std::sqrt(CalculateSquaredReprojectionError(point2D.XY(),
+                                                      point3D.second.XYZ(),
+                                                      image.Qvec(),
+                                                      image.Tvec(),
+                                                      camera));
+    }
+    point3D.second.SetError(error_sum / point3D.second.Track().Length());
   }
 }
 
@@ -1245,13 +1177,11 @@ void Reconstruction::ExportVRML(const std::string& images_path,
     images_file << " coord Coordinate {\n";
     images_file << " point [\n";
 
-    Eigen::Transform<double, 3, Eigen::Affine> transform;
-    transform.matrix().topLeftCorner<3, 4>() =
-        image.second.InverseProjectionMatrix();
-
     // Move camera base model to camera pose.
+    const Eigen::Matrix3x4d worldFromCam =
+        image.second.InverseProjectionMatrix();
     for (size_t i = 0; i < points.size(); i++) {
-      const Eigen::Vector3d point = transform * points[i];
+      const Eigen::Vector3d point = worldFromCam * points[i].homogeneous();
       images_file << point(0) << " " << point(1) << " " << point(2) << "\n";
     }
 

@@ -31,7 +31,7 @@
 
 #include "colmap/image/warp.h"
 
-#include "colmap/util/random.h"
+#include "colmap/math/random.h"
 
 #include <gtest/gtest.h>
 
@@ -46,9 +46,9 @@ void GenerateRandomBitmap(const int width,
   for (int x = 0; x < width; ++x) {
     for (int y = 0; y < height; ++y) {
       BitmapColor<uint8_t> color;
-      color.r = RandomInteger<int>(0, 255);
-      color.g = RandomInteger<int>(0, 255);
-      color.b = RandomInteger<int>(0, 255);
+      color.r = RandomUniformInteger<int>(0, 255);
+      color.g = RandomUniformInteger<int>(0, 255);
+      color.b = RandomUniformInteger<int>(0, 255);
       bitmap->SetPixel(x, y, color);
     }
   }
