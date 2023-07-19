@@ -29,15 +29,12 @@
 //
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-#include "colmap/geometry/similarity_transform.h"
+#include "colmap/base/alignment.h"
 
-#include "colmap/base/reconstruction.h"
 #include "colmap/estimators/similarity_transform.h"
 #include "colmap/geometry/pose.h"
 #include "colmap/geometry/projection.h"
 #include "colmap/optim/loransac.h"
-
-#include <fstream>
 
 namespace colmap {
 namespace {
@@ -47,7 +44,7 @@ struct ReconstructionAlignmentEstimator {
 
   typedef const Image* X_t;
   typedef const Image* Y_t;
-  typedef Eigen::Matrix3x4d M_t;
+  typedef Sim3d M_t;
 
   void SetMaxReprojError(const double max_reproj_error) {
     max_squared_reproj_error_ = max_reproj_error * max_reproj_error;
@@ -76,29 +73,28 @@ struct ReconstructionAlignmentEstimator {
       proj_centers2[i] = tgt_images[i]->ProjectionCenter();
     }
 
-    SimilarityTransform3 tgtFromSrc;
-    if (tgtFromSrc.Estimate(proj_centers1, proj_centers2)) {
-      return {tgtFromSrc.Matrix()};
+    Sim3d tgt_from_src;
+    if (tgt_from_src.Estimate(proj_centers1, proj_centers2)) {
+      return {tgt_from_src};
     }
 
     return {};
   }
 
   // For each image, determine the ratio of 3D points that correctly project
-  // from one image to the other image and vice versa for the given tgtFromSrc.
-  // The residual is then defined as 1 minus this ratio, i.e., an error
-  // threshold of 0.3 means that 70% of the points for that image must reproject
-  // within the given maximum reprojection error threshold.
+  // from one image to the other image and vice versa for the given
+  // tgt_from_src. The residual is then defined as 1 minus this ratio, i.e., an
+  // error threshold of 0.3 means that 70% of the points for that image must
+  // reproject within the given maximum reprojection error threshold.
   void Residuals(const std::vector<X_t>& src_images,
                  const std::vector<Y_t>& tgt_images,
-                 const M_t& tgtFromSrc,
+                 const M_t& tgt_from_src,
                  std::vector<double>* residuals) const {
     CHECK_EQ(src_images.size(), tgt_images.size());
     CHECK_NOTNULL(src_reconstruction_);
     CHECK_NOTNULL(tgt_reconstruction_);
 
-    const Eigen::Matrix3x4d srcFromTgt =
-        SimilarityTransform3(tgtFromSrc).Inverse().Matrix();
+    const Sim3d srcFromTgt = Inverse(tgt_from_src);
 
     residuals->resize(src_images.size());
 
@@ -138,9 +134,8 @@ struct ReconstructionAlignmentEstimator {
         num_common_points += 1;
 
         const Eigen::Vector3d src_point_in_tgt =
-            tgtFromSrc * src_reconstruction_->Point3D(src_point2D.Point3DId())
-                             .XYZ()
-                             .homogeneous();
+            tgt_from_src *
+            src_reconstruction_->Point3D(src_point2D.Point3DId()).XYZ();
         if (CalculateSquaredReprojectionError(tgt_point2D.XY(),
                                               src_point_in_tgt,
                                               src_proj_matrix,
@@ -150,9 +145,8 @@ struct ReconstructionAlignmentEstimator {
         }
 
         const Eigen::Vector3d tgt_point_in_src =
-            srcFromTgt * tgt_reconstruction_->Point3D(tgt_point2D.Point3DId())
-                             .XYZ()
-                             .homogeneous();
+            srcFromTgt *
+            tgt_reconstruction_->Point3D(tgt_point2D.Point3DId()).XYZ();
         if (CalculateSquaredReprojectionError(src_point2D.XY(),
                                               tgt_point_in_src,
                                               tgt_proj_matrix,
@@ -183,94 +177,71 @@ struct ReconstructionAlignmentEstimator {
 
 }  // namespace
 
-SimilarityTransform3::SimilarityTransform3()
-    : matrix_(Eigen::Matrix3x4d::Identity()) {}
+bool AlignReconstructionToLocations(
+    const Reconstruction& src_reconstruction,
+    const std::vector<std::string>& tgt_image_names,
+    const std::vector<Eigen::Vector3d>& tgt_image_locations,
+    const int min_common_images,
+    const RANSACOptions& ransac_options,
+    Sim3d* tgt_from_src) {
+  CHECK_GE(min_common_images, 3);
+  CHECK_EQ(tgt_image_names.size(), tgt_image_locations.size());
 
-SimilarityTransform3::SimilarityTransform3(const Eigen::Matrix3x4d& matrix)
-    : matrix_(matrix) {}
+  // Find out which images are contained in the reconstruction and get the
+  // positions of their camera centers.
+  std::unordered_set<image_t> common_image_ids;
+  std::vector<Eigen::Vector3d> src;
+  std::vector<Eigen::Vector3d> dst;
+  for (size_t i = 0; i < tgt_image_names.size(); ++i) {
+    const class Image* src_image =
+        src_reconstruction.FindImageWithName(tgt_image_names[i]);
+    if (src_image == nullptr) {
+      continue;
+    }
 
-SimilarityTransform3::SimilarityTransform3(const double scale,
-                                           const Eigen::Vector4d& qvec,
-                                           const Eigen::Vector3d& tvec) {
-  matrix_ = ComposeProjectionMatrix(qvec, tvec);
-  matrix_.leftCols<3>() *= scale;
-}
+    if (!src_reconstruction.IsImageRegistered(src_image->ImageId())) {
+      continue;
+    }
 
-SimilarityTransform3 SimilarityTransform3::Inverse() const {
-  const double scale = Scale();
-  Eigen::Matrix3x4d inverse;
-  inverse.leftCols<3>() = matrix_.leftCols<3>().transpose() / (scale * scale);
-  inverse.col(3) = inverse.leftCols<3>() * -matrix_.col(3);
-  return SimilarityTransform3(inverse);
-}
+    // Ignore duplicate images.
+    if (common_image_ids.count(src_image->ImageId()) > 0) {
+      continue;
+    }
 
-const Eigen::Matrix3x4d& SimilarityTransform3::Matrix() const {
-  return matrix_;
-}
+    common_image_ids.insert(src_image->ImageId());
+    src.push_back(src_image->ProjectionCenter());
+    dst.push_back(tgt_image_locations[i]);
+  }
 
-double SimilarityTransform3::Scale() const { return matrix_.col(0).norm(); }
-
-Eigen::Vector4d SimilarityTransform3::Rotation() const {
-  return RotationMatrixToQuaternion(matrix_.leftCols<3>() / Scale());
-}
-
-Eigen::Vector3d SimilarityTransform3::Translation() const {
-  return matrix_.col(3);
-}
-
-bool SimilarityTransform3::Estimate(const std::vector<Eigen::Vector3d>& src,
-                                    const std::vector<Eigen::Vector3d>& tgt) {
-  const auto results =
-      SimilarityTransformEstimator<3, true>().Estimate(src, tgt);
-  if (results.empty()) {
+  // Only compute the alignment if there are enough correspondences.
+  if (common_image_ids.size() < static_cast<size_t>(min_common_images)) {
     return false;
   }
-  CHECK_EQ(results.size(), 1);
-  matrix_ = results[0];
+
+  LORANSAC<SimilarityTransformEstimator<3, true>,
+           SimilarityTransformEstimator<3, true>>
+      ransac(ransac_options);
+
+  const auto report = ransac.Estimate(src, dst);
+
+  if (report.support.num_inliers < static_cast<size_t>(min_common_images)) {
+    return false;
+  }
+
+  if (tgt_from_src != nullptr) {
+    tgt_from_src->scale = report.model.col(0).norm();
+    tgt_from_src->rotation = report.model.leftCols<3>() / tgt_from_src->scale;
+    tgt_from_src->translation = report.model.col(3);
+  }
+
   return true;
 }
 
-void SimilarityTransform3::TransformPose(Eigen::Vector4d* qvec,
-                                         Eigen::Vector3d* tvec) const {
-  Eigen::Matrix4d inverse;
-  inverse.topRows<3>() = Inverse().Matrix();
-  inverse.row(3) = Eigen::Vector4d(0, 0, 0, 1);
-  const Eigen::Matrix3x4d transformed =
-      ComposeProjectionMatrix(*qvec, *tvec) * inverse;
-  const double transformed_scale = transformed.col(0).norm();
-  *qvec =
-      RotationMatrixToQuaternion(transformed.leftCols<3>() / transformed_scale);
-  *tvec = transformed.col(3) / transformed_scale;
-}
-
-void SimilarityTransform3::ToFile(const std::string& path) const {
-  std::ofstream file(path, std::ios::trunc);
-  CHECK(file.good()) << path;
-  // Ensure that we don't loose any precision by storing in text.
-  file.precision(17);
-  file << matrix_ << std::endl;
-}
-
-SimilarityTransform3 SimilarityTransform3::FromFile(const std::string& path) {
-  std::ifstream file(path);
-  CHECK(file.good()) << path;
-
-  Eigen::Matrix3x4d matrix;
-  for (int i = 0; i < matrix.rows(); ++i) {
-    for (int j = 0; j < matrix.cols(); ++j) {
-      file >> matrix(i, j);
-    }
-  }
-
-  return SimilarityTransform3(matrix);
-}
-
-bool ComputeAlignmentBetweenReconstructions(
-    const Reconstruction& src_reconstruction,
-    const Reconstruction& tgt_reconstruction,
-    const double min_inlier_observations,
-    const double max_reproj_error,
-    SimilarityTransform3* tgtFromSrc) {
+bool AlignReconstructions(const Reconstruction& src_reconstruction,
+                          const Reconstruction& tgt_reconstruction,
+                          const double min_inlier_observations,
+                          const double max_reproj_error,
+                          Sim3d* tgt_from_src) {
   CHECK_GE(min_inlier_observations, 0.0);
   CHECK_LE(min_inlier_observations, 1.0);
 
@@ -303,17 +274,16 @@ bool ComputeAlignmentBetweenReconstructions(
   const auto report = ransac.Estimate(src_images, tgt_images);
 
   if (report.success) {
-    *tgtFromSrc = SimilarityTransform3(report.model);
+    *tgt_from_src = report.model;
   }
 
   return report.success;
 }
 
-bool ComputeAlignmentBetweenReconstructions(
-    const Reconstruction& src_reconstruction,
-    const Reconstruction& tgt_reconstruction,
-    const double max_proj_center_error,
-    SimilarityTransform3* tgtFromSrc) {
+bool AlignReconstructions(const Reconstruction& src_reconstruction,
+                          const Reconstruction& tgt_reconstruction,
+                          const double max_proj_center_error,
+                          Sim3d* tgt_from_src) {
   CHECK_GT(max_proj_center_error, 0);
 
   std::vector<std::string> ref_image_names;
@@ -325,26 +295,21 @@ bool ComputeAlignmentBetweenReconstructions(
     }
   }
 
-  SimilarityTransform3 tform;
-  Reconstruction aligned_src_reconstruction = src_reconstruction;
+  Sim3d tform;
   RANSACOptions ransac_options;
   ransac_options.max_error = max_proj_center_error;
-  if (!aligned_src_reconstruction.AlignRobust(ref_image_names,
-                                              ref_proj_centers,
-                                              /*min_common_images=*/3,
-                                              ransac_options,
-                                              &tform)) {
-    return false;
-  }
-
-  *tgtFromSrc = tform;
-  return true;
+  return AlignReconstructionToLocations(src_reconstruction,
+                                        ref_image_names,
+                                        ref_proj_centers,
+                                        /*min_common_images=*/3,
+                                        ransac_options,
+                                        tgt_from_src);
 }
 
 std::vector<ImageAlignmentError> ComputeImageAlignmentError(
     const Reconstruction& src_reconstruction,
     const Reconstruction& tgt_reconstruction,
-    const SimilarityTransform3& tgtFromSrc) {
+    const Sim3d& tgt_from_src) {
   const std::vector<image_t> common_image_ids =
       src_reconstruction.FindCommonRegImageIds(tgt_reconstruction);
   const int num_common_images = common_image_ids.size();
@@ -356,7 +321,7 @@ std::vector<ImageAlignmentError> ComputeImageAlignmentError(
 
     Eigen::Vector4d src_qvec = src_image.Qvec();
     Eigen::Vector3d src_tvec = src_image.Tvec();
-    tgtFromSrc.TransformPose(&src_qvec, &src_tvec);
+    tgt_from_src.TransformPose(&src_qvec, &src_tvec);
 
     const Eigen::Vector4d normalized_qvec1 = NormalizeQuaternion(src_qvec);
     const Eigen::Quaterniond src_quat(normalized_qvec1(0),
@@ -379,6 +344,93 @@ std::vector<ImageAlignmentError> ComputeImageAlignmentError(
     errors.push_back(error);
   }
   return errors;
+}
+
+bool MergeReconstructions(const double max_reproj_error,
+                          const Reconstruction& src_reconstruction,
+                          Reconstruction* tgt_reconstruction) {
+  Sim3d tgt_from_src;
+  if (!AlignReconstructions(src_reconstruction,
+                            *tgt_reconstruction,
+                            /*min_inlier_observations=*/0.3,
+                            max_reproj_error,
+                            &tgt_from_src)) {
+    return false;
+  }
+
+  // Find common and missing images in the two reconstructions.
+  std::unordered_set<image_t> common_image_ids;
+  common_image_ids.reserve(src_reconstruction.NumRegImages());
+  std::unordered_set<image_t> missing_image_ids;
+  missing_image_ids.reserve(src_reconstruction.NumRegImages());
+  for (const auto& image_id : src_reconstruction.RegImageIds()) {
+    if (tgt_reconstruction->ExistsImage(image_id)) {
+      common_image_ids.insert(image_id);
+    } else {
+      missing_image_ids.insert(image_id);
+    }
+  }
+
+  // Register the missing images in this src_reconstruction.
+  for (const auto image_id : missing_image_ids) {
+    auto src_image = src_reconstruction.Image(image_id);
+    src_image.SetRegistered(false);
+    tgt_reconstruction->AddImage(src_image);
+    tgt_reconstruction->RegisterImage(image_id);
+    if (!tgt_reconstruction->ExistsCamera(src_image.CameraId())) {
+      tgt_reconstruction->AddCamera(
+          src_reconstruction.Camera(src_image.CameraId()));
+    }
+    auto& tgt_image = tgt_reconstruction->Image(image_id);
+    tgt_from_src.TransformPose(&tgt_image.Qvec(), &tgt_image.Tvec());
+  }
+
+  // Merge the two point clouds using the following two rules:
+  //    - copy points to this src_reconstruction with non-conflicting tracks,
+  //      i.e. points that do not have an already triangulated observation
+  //      in this src_reconstruction.
+  //    - merge tracks that are unambiguous, i.e. only merge points in the two
+  //      reconstructions if they have a one-to-one mapping.
+  // Note that in both cases no cheirality or reprojection test is performed.
+
+  for (const auto& point3D : src_reconstruction.Points3D()) {
+    Track new_track;
+    Track old_track;
+    std::unordered_set<point3D_t> old_point3D_ids;
+    for (const auto& track_el : point3D.second.Track().Elements()) {
+      if (common_image_ids.count(track_el.image_id) > 0) {
+        const auto& point2D = tgt_reconstruction->Image(track_el.image_id)
+                                  .Point2D(track_el.point2D_idx);
+        if (point2D.HasPoint3D()) {
+          old_track.AddElement(track_el);
+          old_point3D_ids.insert(point2D.Point3DId());
+        } else {
+          new_track.AddElement(track_el);
+        }
+      } else if (missing_image_ids.count(track_el.image_id) > 0) {
+        tgt_reconstruction->Image(track_el.image_id)
+            .ResetPoint3DForPoint2D(track_el.point2D_idx);
+        new_track.AddElement(track_el);
+      }
+    }
+
+    const bool create_new_point = new_track.Length() >= 2;
+    const bool merge_new_and_old_point =
+        (new_track.Length() + old_track.Length()) >= 2 &&
+        old_point3D_ids.size() == 1;
+    if (create_new_point || merge_new_and_old_point) {
+      const Eigen::Vector3d xyz = tgt_from_src * point3D.second.XYZ();
+      const auto point3D_id = tgt_reconstruction->AddPoint3D(
+          xyz, new_track, point3D.second.Color());
+      if (old_point3D_ids.size() == 1) {
+        tgt_reconstruction->MergePoints3D(point3D_id, *old_point3D_ids.begin());
+      }
+    }
+  }
+
+  tgt_reconstruction->FilterAllPoints3D(max_reproj_error, /*min_tri_angle=*/0);
+
+  return true;
 }
 
 }  // namespace colmap

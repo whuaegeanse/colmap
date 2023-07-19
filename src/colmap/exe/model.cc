@@ -31,10 +31,10 @@
 
 #include "colmap/exe/model.h"
 
+#include "colmap/base/alignment.h"
 #include "colmap/estimators/coordinate_frame.h"
 #include "colmap/geometry/gps.h"
 #include "colmap/geometry/pose.h"
-#include "colmap/geometry/similarity_transform.h"
 #include "colmap/util/misc.h"
 #include "colmap/util/option_manager.h"
 #include "colmap/util/threading.h"
@@ -65,8 +65,10 @@ ComputeEqualPartsBounds(const Reconstruction& reconstruction,
   return bounds;
 }
 
-Eigen::Vector3d TransformLatLonAltToModelCoords(
-    const SimilarityTransform3& tform, double lat, double lon, double alt) {
+Eigen::Vector3d TransformLatLonAltToModelCoords(const Sim3d& tform,
+                                                const double lat,
+                                                const double lon,
+                                                const double alt) {
   // Since this is intended for use in ENU aligned models we want to define the
   // altitude along the ENU frame z axis and not the Earth's radius. Thus, we
   // set the altitude to 0 when converting from LLA to ECEF and then we use the
@@ -75,7 +77,7 @@ Eigen::Vector3d TransformLatLonAltToModelCoords(
   Eigen::Vector3d xyz =
       tform * GPSTransform(GPSTransform::WGS84)
                   .EllToXYZ({Eigen::Vector3d(lat, lon, 0.0)})[0];
-  xyz(2) = tform.Scale() * alt;
+  xyz(2) = tform.scale * alt;
   return xyz;
 }
 
@@ -269,7 +271,6 @@ int RunModelAligner(int argc, char** argv) {
   std::string transform_path;
   std::string alignment_type = "custom";
   int min_common_images = 3;
-  bool robust_alignment = true;
   RANSACOptions ransac_options;
 
   OptionManager options;
@@ -285,9 +286,7 @@ int RunModelAligner(int argc, char** argv) {
       &alignment_type,
       "{plane, ecef, enu, enu-plane, enu-plane-unscaled, custom}");
   options.AddDefaultOption("min_common_images", &min_common_images);
-  options.AddDefaultOption("robust_alignment", &robust_alignment);
-  options.AddDefaultOption("robust_alignment_max_error",
-                           &ransac_options.max_error);
+  options.AddDefaultOption("alignment_max_error", &ransac_options.max_error);
   options.Parse(argc, argv);
 
   StringToLower(&alignment_type);
@@ -301,7 +300,7 @@ int RunModelAligner(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  if (robust_alignment && ransac_options.max_error <= 0) {
+  if (ransac_options.max_error <= 0) {
     std::cout << "ERROR: You must provide a maximum alignment error > 0"
               << std::endl;
     return EXIT_FAILURE;
@@ -343,7 +342,7 @@ int RunModelAligner(int argc, char** argv) {
 
   Reconstruction reconstruction;
   reconstruction.Read(input_path);
-  SimilarityTransform3 tform;
+  Sim3d tform;
   bool alignment_success = true;
 
   if (alignment_type == "plane") {
@@ -355,16 +354,13 @@ int RunModelAligner(int argc, char** argv) {
                               ref_image_names.size())
               << std::endl;
 
-    if (robust_alignment) {
-      alignment_success = reconstruction.AlignRobust(ref_image_names,
-                                                     ref_locations,
-                                                     min_common_images,
-                                                     ransac_options,
-                                                     &tform);
-    } else {
-      alignment_success = reconstruction.Align(
-          ref_image_names, ref_locations, min_common_images, &tform);
-    }
+    const bool alignment_success =
+        AlignReconstructionToLocations(reconstruction,
+                                       ref_image_names,
+                                       ref_locations,
+                                       min_common_images,
+                                       ransac_options,
+                                       &tform);
 
     std::vector<double> errors;
     errors.reserve(ref_image_names.size());
@@ -394,21 +390,19 @@ int RunModelAligner(int argc, char** argv) {
 
       if (first_image != nullptr) {
         const Eigen::Vector3d& first_img_position = ref_locations[i];
-
         const Eigen::Vector3d trans_align =
             first_img_position - first_image->ProjectionCenter();
+        const Sim3d origin_align(
+            1.0, Eigen::Quaterniond::Identity(), trans_align);
 
-        const SimilarityTransform3 origin_align(
-            1.0, ComposeIdentityQuaternion(), trans_align);
-
-        std::cout << "\n Aligning Reconstruction's origin with Ref origin : "
+        std::cout << "\n Aligning reconstruction's origin with ref origin: "
                   << first_img_position.transpose() << "\n";
 
         reconstruction.Transform(origin_align);
 
-        // Update the Sim3 transformation in case it is stored next
-        tform = SimilarityTransform3(
-            tform.Scale(), tform.Rotation(), tform.Translation() + trans_align);
+        // Update the Sim3 transformation in case it is stored next.
+        tform =
+            Sim3d(tform.scale, tform.rotation, tform.translation + trans_align);
 
         break;
       }
@@ -533,21 +527,21 @@ int RunModelComparer(int argc, char** argv) {
   std::cout << StringPrintf("Common images: %d", common_image_ids.size())
             << std::endl;
 
-  SimilarityTransform3 tgt_from_src;
+  Sim3d tgt_from_src;
   bool success = false;
   if (alignment_error == "reprojection") {
-    success = ComputeAlignmentBetweenReconstructions(
+    success = AlignReconstructions(
         reconstruction1,
         reconstruction2,
         /*min_inlier_observations=*/min_inlier_observations,
         /*max_reproj_error=*/max_reproj_error,
         &tgt_from_src);
   } else if (alignment_error == "proj_center") {
-    success = ComputeAlignmentBetweenReconstructions(
-        reconstruction1,
-        reconstruction2,
-        /*max_proj_center_error=*/max_proj_center_error,
-        &tgt_from_src);
+    success =
+        AlignReconstructions(reconstruction1,
+                             reconstruction2,
+                             /*max_proj_center_error=*/max_proj_center_error,
+                             &tgt_from_src);
   } else {
     std::cout << "ERROR: Invalid alignment_error specified." << std::endl;
     return EXIT_FAILURE;
@@ -559,7 +553,7 @@ int RunModelComparer(int argc, char** argv) {
   }
 
   std::cout << "Computed alignment transform:" << std::endl
-            << tgt_from_src.Matrix() << std::endl;
+            << tgt_from_src.ToMatrix() << std::endl;
 
   const std::vector<ImageAlignmentError> errors = ComputeImageAlignmentError(
       reconstruction1, reconstruction2, tgt_from_src);
@@ -669,11 +663,11 @@ int RunModelCropper(int argc, char** argv) {
   PrintHeading2("Calculating boundary coordinates");
   std::pair<Eigen::Vector3d, Eigen::Vector3d> bounding_box;
   if (boundary_elements.size() == 6) {
-    SimilarityTransform3 tform;
+    Sim3d tform;
     if (!gps_transform_path.empty()) {
       PrintHeading2("Reading model to ECEF transform");
       is_gps = true;
-      tform = SimilarityTransform3::FromFile(gps_transform_path).Inverse();
+      tform = Inverse(Sim3d::FromFile(gps_transform_path));
     }
     bounding_box.first =
         is_gps ? TransformLatLonAltToModelCoords(tform,
@@ -735,18 +729,19 @@ int RunModelMerger(int argc, char** argv) {
             << std::endl;
 
   PrintHeading2("Merging reconstructions");
-  if (reconstruction1.Merge(reconstruction2, max_reproj_error)) {
+  if (MergeReconstructions(
+          max_reproj_error, reconstruction1, &reconstruction2)) {
     std::cout << "=> Merge succeeded" << std::endl;
     PrintHeading2("Merged reconstruction");
-    std::cout << StringPrintf("Images: %d", reconstruction1.NumRegImages())
+    std::cout << StringPrintf("Images: %d", reconstruction2.NumRegImages())
               << std::endl;
-    std::cout << StringPrintf("Points: %d", reconstruction1.NumPoints3D())
+    std::cout << StringPrintf("Points: %d", reconstruction2.NumPoints3D())
               << std::endl;
   } else {
     std::cout << "=> Merge failed" << std::endl;
   }
 
-  reconstruction1.Write(output_path);
+  reconstruction2.Write(output_path);
 
   return EXIT_SUCCESS;
 }
@@ -808,8 +803,8 @@ int RunModelOrientationAligner(int argc, char** argv) {
   std::cout << "Using the rotation matrix:" << std::endl;
   std::cout << tform << std::endl;
 
-  reconstruction.Transform(SimilarityTransform3(
-      1, RotationMatrixToQuaternion(tform), Eigen::Vector3d(0, 0, 0)));
+  reconstruction.Transform(
+      Sim3d(1, Eigen::Quaterniond(tform), Eigen::Vector3d(0, 0, 0)));
 
   std::cout << "Writing aligned reconstruction..." << std::endl;
   reconstruction.Write(output_path);
@@ -869,13 +864,12 @@ int RunModelSplitter(int argc, char** argv) {
   Reconstruction reconstruction;
   reconstruction.Read(input_path);
 
-  SimilarityTransform3 tform;
+  Sim3d tform;
   if (!gps_transform_path.empty()) {
     PrintHeading2("Reading model to ECEF transform");
     is_gps = true;
-    tform = SimilarityTransform3::FromFile(gps_transform_path).Inverse();
+    tform = Inverse(Sim3d::FromFile(gps_transform_path));
   }
-  const double scale = tform.Scale();
 
   // Create the necessary number of reconstructions based on the split method
   // and get the bounding boxes for each sub-reconstruction
@@ -910,7 +904,7 @@ int RunModelSplitter(int argc, char** argv) {
                            std::numeric_limits<double>::max(),
                            std::numeric_limits<double>::max());
     for (size_t i = 0; i < parts.size(); ++i) {
-      extent(i) = parts[i] * scale;
+      extent(i) = parts[i] * tform.scale;
     }
 
     const auto bbox = reconstruction.ComputeBoundingBox();
@@ -1035,9 +1029,9 @@ int RunModelTransformer(int argc, char** argv) {
   }
 
   std::cout << "Reading transform input: " << transform_path << std::endl;
-  SimilarityTransform3 tform = SimilarityTransform3::FromFile(transform_path);
+  Sim3d tform = Sim3d::FromFile(transform_path);
   if (is_inverse) {
-    tform = tform.Inverse();
+    tform = Inverse(tform);
   }
 
   std::cout << "Applying transform to recon with " << recon.NumPoints3D()

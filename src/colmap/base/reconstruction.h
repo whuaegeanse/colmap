@@ -37,7 +37,7 @@
 #include "colmap/base/point2d.h"
 #include "colmap/base/point3d.h"
 #include "colmap/base/track.h"
-#include "colmap/geometry/similarity_transform.h"
+#include "colmap/geometry/sim3.h"
 #include "colmap/util/types.h"
 
 #include <memory>
@@ -187,7 +187,7 @@ class Reconstruction {
       double p0 = 0.0, double p1 = 1.0) const;
 
   // Apply the 3D similarity transformation to all images and points.
-  void Transform(const SimilarityTransform3& tform);
+  void Transform(const Sim3d& tform);
 
   // Creates a cropped reconstruction using the input bounds as corner points
   // of the bounding box containing the included 3D points of the new
@@ -195,28 +195,6 @@ class Reconstruction {
   // registered.
   Reconstruction Crop(
       const std::pair<Eigen::Vector3d, Eigen::Vector3d>& bbox) const;
-
-  // Merge the given reconstruction into this reconstruction by registering the
-  // images registered in the given but not in this reconstruction and by
-  // merging the two clouds and their tracks. The coordinate frames of the two
-  // reconstructions are aligned using the projection centers of common
-  // registered images. Return true if the two reconstructions could be merged.
-  bool Merge(const Reconstruction& reconstruction, double max_reproj_error);
-
-  // Align the given reconstruction with a set of pre-defined camera positions.
-  // Assuming that locations[i] gives the 3D coordinates of the center
-  // of projection of the image with name image_names[i].
-  bool Align(const std::vector<std::string>& image_names,
-             const std::vector<Eigen::Vector3d>& locations,
-             int min_common_images,
-             SimilarityTransform3* tform = nullptr);
-
-  // Robust alignment using RANSAC.
-  bool AlignRobust(const std::vector<std::string>& image_names,
-                   const std::vector<Eigen::Vector3d>& locations,
-                   int min_common_images,
-                   const RANSACOptions& ransac_options,
-                   SimilarityTransform3* tform = nullptr);
 
   // Find specific image by name. Note that this uses linear search.
   const class Image* FindImageWithName(const std::string& name) const;
