@@ -250,7 +250,7 @@ class DelaunayMeshingInput {
       const auto& image = reconstruction.Image(image_id);
       DelaunayMeshingInput::Image input_image;
       input_image.camera_id = image.CameraId();
-      input_image.proj_matrix = image.ProjectionMatrix().cast<float>();
+      input_image.proj_matrix = image.CamFromWorld().ToMatrix().cast<float>();
       input_image.proj_center = image.ProjectionCenter().cast<float>();
       input_image.point_idxs.reserve(image.NumPoints3D());
       for (const auto& point2D : image.Points2D()) {
@@ -275,7 +275,7 @@ class DelaunayMeshingInput {
         const auto& image = reconstruction.Image(image_id);
         DelaunayMeshingInput::Image input_image;
         input_image.camera_id = image.CameraId();
-        input_image.proj_matrix = image.ProjectionMatrix().cast<float>();
+        input_image.proj_matrix = image.CamFromWorld().ToMatrix().cast<float>();
         input_image.proj_center = image.ProjectionCenter().cast<float>();
         images.push_back(input_image);
       }
@@ -394,10 +394,10 @@ class DelaunayMeshingInput {
 
           // Check reprojection error between the two points.
           const Eigen::Vector2f point_proj =
-              camera.WorldToImage(point_local.hnormalized().cast<double>())
+              camera.CamToImg(point_local.hnormalized().cast<double>())
                   .cast<float>();
           const Eigen::Vector2f cell_point_proj =
-              camera.WorldToImage(cell_point_local.hnormalized().cast<double>())
+              camera.CamToImg(cell_point_local.hnormalized().cast<double>())
                   .cast<float>();
           const float squared_proj_dist =
               (point_proj - cell_point_proj).squaredNorm();

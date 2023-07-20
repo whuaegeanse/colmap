@@ -102,11 +102,7 @@ void TwoViewGeometry::Invert() {
   F.transposeInPlace();
   E.transposeInPlace();
   H = H.inverse().eval();
-
-  const Eigen::Vector4d orig_qvec = qvec;
-  const Eigen::Vector3d orig_tvec = tvec;
-  InvertPose(orig_qvec, orig_tvec, &qvec, &tvec);
-
+  cam2_from_cam1 = Inverse(cam2_from_cam1);
   for (auto& match : inlier_matches) {
     std::swap(match.point2D_idx1, match.point2D_idx2);
   }
@@ -188,13 +184,13 @@ bool TwoViewGeometry::EstimateRelativePose(
   std::vector<Eigen::Vector2d> inlier_points2_normalized;
   inlier_points2_normalized.reserve(inlier_matches.size());
   for (const auto& match : inlier_matches) {
-    const point2D_t idx1 = match.point2D_idx1;
-    const point2D_t idx2 = match.point2D_idx2;
-    inlier_points1_normalized.push_back(camera1.ImageToWorld(points1[idx1]));
-    inlier_points2_normalized.push_back(camera2.ImageToWorld(points2[idx2]));
+    inlier_points1_normalized.push_back(
+        camera1.ImgToCam(points1[match.point2D_idx1]));
+    inlier_points2_normalized.push_back(
+        camera2.ImgToCam(points2[match.point2D_idx2]));
   }
 
-  Eigen::Matrix3d R;
+  Eigen::Matrix3d cam2_from_cam1_rot_mat;
   std::vector<Eigen::Vector3d> points3D;
 
   if (config == CALIBRATED || config == UNCALIBRATED) {
@@ -205,36 +201,38 @@ bool TwoViewGeometry::EstimateRelativePose(
     PoseFromEssentialMatrix(E,
                             inlier_points1_normalized,
                             inlier_points2_normalized,
-                            &R,
-                            &tvec,
+                            &cam2_from_cam1_rot_mat,
+                            &cam2_from_cam1.translation,
                             &points3D);
   } else if (config == PLANAR || config == PANORAMIC ||
              config == PLANAR_OR_PANORAMIC) {
-    Eigen::Vector3d n;
+    Eigen::Vector3d normal;
     PoseFromHomographyMatrix(H,
                              camera1.CalibrationMatrix(),
                              camera2.CalibrationMatrix(),
                              inlier_points1_normalized,
                              inlier_points2_normalized,
-                             &R,
-                             &tvec,
-                             &n,
+                             &cam2_from_cam1_rot_mat,
+                             &cam2_from_cam1.translation,
+                             &normal,
                              &points3D);
   } else {
     return false;
   }
 
-  qvec = RotationMatrixToQuaternion(R);
+  cam2_from_cam1.rotation = Eigen::Quaterniond(cam2_from_cam1_rot_mat);
 
   if (points3D.empty()) {
     tri_angle = 0;
   } else {
     tri_angle = Median(CalculateTriangulationAngles(
-        Eigen::Vector3d::Zero(), -R.transpose() * tvec, points3D));
+        Eigen::Vector3d::Zero(),
+        -cam2_from_cam1_rot_mat.transpose() * cam2_from_cam1.translation,
+        points3D));
   }
 
   if (config == PLANAR_OR_PANORAMIC) {
-    if (tvec.norm() == 0) {
+    if (cam2_from_cam1.translation.norm() == 0) {
       config = PANORAMIC;
       tri_angle = 0;
     } else {
@@ -269,16 +267,16 @@ void TwoViewGeometry::EstimateCalibrated(
     const point2D_t idx2 = matches[i].point2D_idx2;
     matched_points1[i] = points1[idx1];
     matched_points2[i] = points2[idx2];
-    matched_points1_normalized[i] = camera1.ImageToWorld(points1[idx1]);
-    matched_points2_normalized[i] = camera2.ImageToWorld(points2[idx2]);
+    matched_points1_normalized[i] = camera1.ImgToCam(points1[idx1]);
+    matched_points2_normalized[i] = camera2.ImgToCam(points2[idx2]);
   }
 
   // Estimate epipolar models.
 
   auto E_ransac_options = options.ransac_options;
   E_ransac_options.max_error =
-      (camera1.ImageToWorldThreshold(options.ransac_options.max_error) +
-       camera2.ImageToWorldThreshold(options.ransac_options.max_error)) /
+      (camera1.ImgToCamThreshold(options.ransac_options.max_error) +
+       camera2.ImgToCamThreshold(options.ransac_options.max_error)) /
       2;
 
   LORANSAC<EssentialMatrixFivePointEstimator, EssentialMatrixFivePointEstimator>
