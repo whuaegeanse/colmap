@@ -83,7 +83,7 @@ void BuildImageModel(const Image& image,
   const float image_extent = std::max(image_width, image_height);
   const float camera_extent = std::max(camera.Width(), camera.Height());
   const float camera_extent_normalized =
-      static_cast<float>(camera.ImgToCamThreshold(camera_extent));
+      static_cast<float>(camera.CamFromImgThreshold(camera_extent));
   const float focal_length = 2.0f * image_extent / camera_extent_normalized;
 
   const Eigen::Matrix<float, 3, 4> inv_proj_matrix =
@@ -1101,7 +1101,7 @@ void ModelViewerWidget::UploadImageConnectionData() {
 
     for (const Point2D& point2D : image.Points2D()) {
       if (point2D.HasPoint3D()) {
-        const Point3D& point3D = points3D[point2D.Point3DId()];
+        const Point3D& point3D = points3D[point2D.point3D_id];
         for (const auto& track_elem : point3D.Track().Elements()) {
           conn_image_ids.insert(track_elem.image_id);
         }

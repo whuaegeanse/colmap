@@ -256,7 +256,7 @@ class DelaunayMeshingInput {
       for (const auto& point2D : image.Points2D()) {
         if (point2D.HasPoint3D()) {
           input_image.point_idxs.push_back(
-              point_id_to_idx.at(point2D.Point3DId()));
+              point_id_to_idx.at(point2D.point3D_id));
         }
       }
       images.push_back(input_image);
@@ -394,10 +394,10 @@ class DelaunayMeshingInput {
 
           // Check reprojection error between the two points.
           const Eigen::Vector2f point_proj =
-              camera.CamToImg(point_local.hnormalized().cast<double>())
+              camera.ImgFromCam(point_local.hnormalized().cast<double>())
                   .cast<float>();
           const Eigen::Vector2f cell_point_proj =
-              camera.CamToImg(cell_point_local.hnormalized().cast<double>())
+              camera.ImgFromCam(cell_point_local.hnormalized().cast<double>())
                   .cast<float>();
           const float squared_proj_dist =
               (point_proj - cell_point_proj).squaredNorm();

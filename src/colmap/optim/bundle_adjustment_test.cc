@@ -170,8 +170,8 @@ void GenerateReconstruction(const size_t num_images,
       EXPECT_TRUE(
           HasPointPositiveDepth(cam_from_world_matrix, point3D.second.XYZ()));
       // Get exact projection of 3D point.
-      Eigen::Vector2d point2D = ProjectPointToImage(
-          point3D.second.XYZ(), cam_from_world_matrix, camera);
+      Eigen::Vector2d point2D = camera.ImgFromCam(
+          (image.CamFromWorld() * point3D.second.XYZ()).hnormalized());
       // Add some uniform noise.
       point2D += Eigen::Vector2d(RandomUniformReal(-2.0, 2.0),
                                  RandomUniformReal(-2.0, 2.0));
@@ -292,7 +292,7 @@ TEST(BundleAdjustment, PartiallyContainedTracks) {
   Reconstruction reconstruction;
   GenerateReconstruction(3, 100, &reconstruction);
   const auto variable_point3D_id =
-      reconstruction.Image(2).Point2D(0).Point3DId();
+      reconstruction.Image(2).Point2D(0).point3D_id;
   reconstruction.DeleteObservation(2, 0);
 
   const auto orig_reconstruction = reconstruction;
@@ -339,11 +339,11 @@ TEST(BundleAdjustment, PartiallyContainedTracksForceToOptimizePoint) {
   Reconstruction reconstruction;
   GenerateReconstruction(3, 100, &reconstruction);
   const point3D_t variable_point3D_id =
-      reconstruction.Image(2).Point2D(0).Point3DId();
+      reconstruction.Image(2).Point2D(0).point3D_id;
   const point3D_t add_variable_point3D_id =
-      reconstruction.Image(2).Point2D(1).Point3DId();
+      reconstruction.Image(2).Point2D(1).point3D_id;
   const point3D_t add_constant_point3D_id =
-      reconstruction.Image(2).Point2D(2).Point3DId();
+      reconstruction.Image(2).Point2D(2).point3D_id;
   reconstruction.DeleteObservation(2, 0);
 
   const auto orig_reconstruction = reconstruction;
