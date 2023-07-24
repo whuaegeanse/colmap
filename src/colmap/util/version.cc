@@ -31,7 +31,19 @@
 
 #include "colmap/util/version.h"
 
+#include "colmap/util/misc.h"
+
 namespace colmap {
+namespace {
+
+const std::string COLMAP_VERSION = "3.9";
+const int COLMAP_VERSION_NUMBER = 3900;
+const std::string COLMAP_COMMIT_ID = "93af740";
+const std::string COLMAP_COMMIT_DATE = "2023-07-23";
+
+}  // namespace
+
+int GetVersionNumber() { return COLMAP_VERSION_NUMBER; }
 
 std::string GetVersionInfo() {
   return StringPrintf("COLMAP %s", COLMAP_VERSION.c_str());

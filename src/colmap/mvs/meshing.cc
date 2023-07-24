@@ -40,13 +40,12 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #endif  // CGAL_ENABLED
 
-#include "colmap/base/reconstruction.h"
 #include "colmap/math/graph_cut.h"
 #include "colmap/math/random.h"
+#include "colmap/scene/reconstruction.h"
 #include "colmap/util/endian.h"
 #include "colmap/util/logging.h"
 #include "colmap/util/misc.h"
-#include "colmap/util/option_manager.h"
 #include "colmap/util/ply.h"
 #include "colmap/util/threading.h"
 #include "colmap/util/timer.h"
@@ -256,7 +255,7 @@ class DelaunayMeshingInput {
       for (const auto& point2D : image.Points2D()) {
         if (point2D.HasPoint3D()) {
           input_image.point_idxs.push_back(
-              point_id_to_idx.at(point2D.Point3DId()));
+              point_id_to_idx.at(point2D.point3D_id));
         }
       }
       images.push_back(input_image);
