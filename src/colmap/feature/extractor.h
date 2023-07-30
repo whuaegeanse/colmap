@@ -31,37 +31,18 @@
 
 #pragma once
 
-#include "colmap/scene/database.h"
-#include "colmap/scene/reconstruction.h"
-#include "colmap/sensor/models.h"
-#include "colmap/util/types.h"
+#include "colmap/feature/types.h"
+#include "colmap/sensor/bitmap.h"
 
 namespace colmap {
 
-struct SyntheticDatasetOptions {
-  int num_cameras = 2;
-  int num_images = 10;
-  int num_points3D = 100;
+class FeatureExtractor {
+ public:
+  virtual ~FeatureExtractor() = default;
 
-  int camera_width = 1024;
-  int camera_height = 768;
-  int camera_model_id = SimpleRadialCameraModel::model_id;
-  std::vector<double> camera_params = {1280, 512, 384, 0.05};
-
-  int num_points2D_without_point3D = 10;
-  double point2D_stddev = 0.0;
-
-  enum class MatchConfig {
-    // Exhaustive matches between all pairs of observations of a 3D point.
-    EXHAUSTIVE = 1,
-    // Chain of matches with random start/end observations.
-    CHAINED = 2,
-  };
-  MatchConfig match_config = MatchConfig::EXHAUSTIVE;
+  virtual bool Extract(const Bitmap& bitmap,
+                       FeatureKeypoints* keypoints,
+                       FeatureDescriptors* descriptors) = 0;
 };
-
-void SynthesizeDataset(const SyntheticDatasetOptions& options,
-                       Reconstruction* reconstruction,
-                       Database* database);
 
 }  // namespace colmap
