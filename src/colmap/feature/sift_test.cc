@@ -61,10 +61,16 @@ TEST(ExtractSiftFeaturesCPU, Nominal) {
   Bitmap bitmap;
   CreateImageWithSquare(256, &bitmap);
 
+  SiftExtractionOptions options;
+  options.use_gpu = false;
+  options.estimate_affine_shape = false;
+  options.domain_size_pooling = false;
+  options.force_covariant_extractor = false;
+  auto extractor = CreateSiftFeatureExtractor(options);
+
   FeatureKeypoints keypoints;
   FeatureDescriptors descriptors;
-  EXPECT_TRUE(ExtractSiftFeaturesCPU(
-      SiftExtractionOptions(), bitmap, &keypoints, &descriptors));
+  EXPECT_TRUE(extractor->Extract(bitmap, &keypoints, &descriptors));
 
   EXPECT_EQ(keypoints.size(), 22);
   for (size_t i = 0; i < keypoints.size(); ++i) {
@@ -87,10 +93,16 @@ TEST(ExtractCovariantSiftFeaturesCPU, Nominal) {
   Bitmap bitmap;
   CreateImageWithSquare(256, &bitmap);
 
+  SiftExtractionOptions options;
+  options.use_gpu = false;
+  options.estimate_affine_shape = false;
+  options.domain_size_pooling = false;
+  options.force_covariant_extractor = true;
+  auto extractor = CreateSiftFeatureExtractor(options);
+
   FeatureKeypoints keypoints;
   FeatureDescriptors descriptors;
-  EXPECT_TRUE(ExtractCovariantSiftFeaturesCPU(
-      SiftExtractionOptions(), bitmap, &keypoints, &descriptors));
+  EXPECT_TRUE(extractor->Extract(bitmap, &keypoints, &descriptors));
 
   EXPECT_EQ(keypoints.size(), 22);
   for (size_t i = 0; i < keypoints.size(); ++i) {
@@ -113,12 +125,16 @@ TEST(ExtractCovariantAffineSiftFeaturesCPU, Nominal) {
   Bitmap bitmap;
   CreateImageWithSquare(256, &bitmap);
 
+  SiftExtractionOptions options;
+  options.use_gpu = false;
+  options.estimate_affine_shape = true;
+  options.domain_size_pooling = false;
+  options.force_covariant_extractor = false;
+  auto extractor = CreateSiftFeatureExtractor(options);
+
   FeatureKeypoints keypoints;
   FeatureDescriptors descriptors;
-  SiftExtractionOptions options;
-  options.estimate_affine_shape = true;
-  EXPECT_TRUE(ExtractCovariantSiftFeaturesCPU(
-      options, bitmap, &keypoints, &descriptors));
+  EXPECT_TRUE(extractor->Extract(bitmap, &keypoints, &descriptors));
 
   EXPECT_EQ(keypoints.size(), 10);
   for (size_t i = 0; i < keypoints.size(); ++i) {
@@ -141,12 +157,16 @@ TEST(ExtractCovariantDSPSiftFeaturesCPU, Nominal) {
   Bitmap bitmap;
   CreateImageWithSquare(256, &bitmap);
 
+  SiftExtractionOptions options;
+  options.use_gpu = false;
+  options.estimate_affine_shape = false;
+  options.domain_size_pooling = true;
+  options.force_covariant_extractor = false;
+  auto extractor = CreateSiftFeatureExtractor(options);
+
   FeatureKeypoints keypoints;
   FeatureDescriptors descriptors;
-  SiftExtractionOptions options;
-  options.domain_size_pooling = true;
-  EXPECT_TRUE(ExtractCovariantSiftFeaturesCPU(
-      options, bitmap, &keypoints, &descriptors));
+  EXPECT_TRUE(extractor->Extract(bitmap, &keypoints, &descriptors));
 
   EXPECT_EQ(keypoints.size(), 22);
   for (size_t i = 0; i < keypoints.size(); ++i) {
@@ -169,13 +189,16 @@ TEST(ExtractCovariantAffineDSPSiftFeaturesCPU, Nominal) {
   Bitmap bitmap;
   CreateImageWithSquare(256, &bitmap);
 
-  FeatureKeypoints keypoints;
-  FeatureDescriptors descriptors;
   SiftExtractionOptions options;
+  options.use_gpu = false;
   options.estimate_affine_shape = true;
   options.domain_size_pooling = true;
-  EXPECT_TRUE(ExtractCovariantSiftFeaturesCPU(
-      options, bitmap, &keypoints, &descriptors));
+  options.force_covariant_extractor = false;
+  auto extractor = CreateSiftFeatureExtractor(options);
+
+  FeatureKeypoints keypoints;
+  FeatureDescriptors descriptors;
+  EXPECT_TRUE(extractor->Extract(bitmap, &keypoints, &descriptors));
 
   EXPECT_EQ(keypoints.size(), 10);
   for (size_t i = 0; i < keypoints.size(); ++i) {
@@ -208,16 +231,16 @@ TEST(ExtractSiftFeaturesGPU, Nominal) {
       Bitmap bitmap;
       CreateImageWithSquare(256, &bitmap);
 
-      SiftGPU sift_gpu;
-      EXPECT_TRUE(CreateSiftGPUExtractor(SiftExtractionOptions(), &sift_gpu));
+      SiftExtractionOptions options;
+      options.use_gpu = true;
+      options.estimate_affine_shape = false;
+      options.domain_size_pooling = false;
+      options.force_covariant_extractor = false;
+      auto extractor = CreateSiftFeatureExtractor(options);
 
       FeatureKeypoints keypoints;
       FeatureDescriptors descriptors;
-      EXPECT_TRUE(ExtractSiftFeaturesGPU(SiftExtractionOptions(),
-                                         bitmap,
-                                         &sift_gpu,
-                                         &keypoints,
-                                         &descriptors));
+      EXPECT_TRUE(extractor->Extract(bitmap, &keypoints, &descriptors));
 
       EXPECT_GE(keypoints.size(), 12);
       for (size_t i = 0; i < keypoints.size(); ++i) {
@@ -244,14 +267,14 @@ TEST(ExtractSiftFeaturesGPU, Nominal) {
 
 FeatureDescriptors CreateRandomFeatureDescriptors(const size_t num_features) {
   SetPRNGSeed(0);
-  Eigen::MatrixXf descriptors(num_features, 128);
+  FeatureDescriptorsFloat descriptors(num_features, 128);
   for (size_t i = 0; i < num_features; ++i) {
     for (size_t j = 0; j < 128; ++j) {
       descriptors(i, j) = std::pow(RandomUniformReal(0.0f, 1.0f), 2);
     }
   }
-  return FeatureDescriptorsToUnsignedByte(
-      L2NormalizeFeatureDescriptors(descriptors));
+  L2NormalizeFeatureDescriptors(&descriptors);
+  return FeatureDescriptorsToUnsignedByte(descriptors);
 }
 
 void CheckEqualMatches(const FeatureMatches& matches1,
@@ -393,10 +416,10 @@ TEST(MatchSiftFeaturesCPUFLANNvsBruteForce, Nominal) {
     descriptors2.row(49) = descriptors2.row(0);
     descriptors2(0, 0) += 50.0f;
     descriptors2.row(0) = FeatureDescriptorsToUnsignedByte(
-        L2NormalizeFeatureDescriptors(descriptors2.row(0).cast<float>()));
+        descriptors2.row(0).cast<float>().normalized());
     descriptors2(49, 0) += 100.0f;
     descriptors2.row(49) = FeatureDescriptorsToUnsignedByte(
-        L2NormalizeFeatureDescriptors(descriptors2.row(49).cast<float>()));
+        descriptors2.row(49).cast<float>().normalized());
 
     match_options.max_ratio = 0.4;
     const size_t num_matches2 = TestFLANNvsBruteForce(
@@ -679,10 +702,10 @@ TEST(MatchSiftFeaturesCPUvsGPU, Nominal) {
         descriptors2.row(49) = descriptors2.row(0);
         descriptors2(0, 0) += 50.0f;
         descriptors2.row(0) = FeatureDescriptorsToUnsignedByte(
-            L2NormalizeFeatureDescriptors(descriptors2.row(0).cast<float>()));
+            descriptors2.row(0).cast<float>().normalized());
         descriptors2(49, 0) += 100.0f;
         descriptors2.row(49) = FeatureDescriptorsToUnsignedByte(
-            L2NormalizeFeatureDescriptors(descriptors2.row(49).cast<float>()));
+            descriptors2.row(49).cast<float>().normalized());
 
         match_options.max_ratio = 0.4;
         const size_t num_matches2 =
