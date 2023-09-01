@@ -52,9 +52,6 @@ First, checkout the latest source code::
 
     git clone https://github.com/colmap/colmap
 
-The latest stable version lives in the ``master`` branch and the latest
-development version lives in the ``dev`` branch.
-
 On Linux and Mac it is generally recommended to follow the installation
 instructions below, which use the system package managers to install the
 required dependencies. Alternatively, there is a Python build script that builds
@@ -95,7 +92,6 @@ Configure and compile COLMAP::
 
     git clone https://github.com/colmap/colmap.git
     cd colmap
-    git checkout dev
     mkdir build
     cd build
     cmake .. -GNinja
