@@ -31,10 +31,6 @@
 
 #include "colmap/feature/sift.h"
 
-#if defined(COLMAP_GPU_ENABLED)
-#include <GL/glew.h>
-#endif  // COLMAP_GPU_ENABLED
-
 #include "colmap/feature/utils.h"
 #include "colmap/math/math.h"
 #include "colmap/util/cuda.h"
@@ -44,6 +40,10 @@
 
 #if defined(COLMAP_GPU_ENABLED)
 #include "thirdparty/SiftGPU/SiftGPU.h"
+#if !defined(COLMAP_GUI_ENABLED)
+// GLEW symbols are already defined by Qt.
+#include <GL/glew.h>
+#endif  // COLMAP_GUI_ENABLED
 #endif  // COLMAP_GPU_ENABLED
 #include "thirdparty/VLFeat/covdet.h"
 #include "thirdparty/VLFeat/sift.h"
@@ -1457,7 +1457,7 @@ std::unique_ptr<FeatureMatcher> CreateSiftFeatureMatcher(
     return SiftGPUFeatureMatcher::Create(options);
 #else
     return nullptr;
-#endif // COLMAP_GPU_ENABLED
+#endif  // COLMAP_GPU_ENABLED
   } else {
     return SiftCPUFeatureMatcher::Create(options);
   }
