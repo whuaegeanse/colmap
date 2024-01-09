@@ -344,8 +344,8 @@ class PoseGraphErrorCostFunction {
 
   static ceres::CostFunction* Create(const Eigen::Quaterniond& q_ab_measured,
                                      const Eigen::Vector3d& p_ab_measured,
-                                     const double weight_rotation,
-                                     const double weight_position) {
+                                     const double weight_rotation = 1.0,
+                                     const double weight_position = 1.0) {
     return (new ceres::
                 AutoDiffCostFunction<PoseGraphErrorCostFunction, 6, 4, 3, 4, 3>(
                     new PoseGraphErrorCostFunction(q_ab_measured,

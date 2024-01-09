@@ -44,23 +44,6 @@ namespace colmap {
 // BundleAdjustmentOptions
 ////////////////////////////////////////////////////////////////////////////////
 
-ceres::LossFunction* BundleAdjustmentOptions::CreateLossFunction() const {
-  ceres::LossFunction* loss_function = nullptr;
-  switch (loss_function_type) {
-    case LossFunctionType::TRIVIAL:
-      loss_function = new ceres::TrivialLoss();
-      break;
-    case LossFunctionType::SOFT_L1:
-      loss_function = new ceres::SoftLOneLoss(loss_function_scale);
-      break;
-    case LossFunctionType::CAUCHY:
-      loss_function = new ceres::CauchyLoss(loss_function_scale);
-      break;
-  }
-  CHECK_NOTNULL(loss_function);
-  return loss_function;
-}
-
 bool BundleAdjustmentOptions::Check() const {
   CHECK_OPTION_GE(loss_function_scale, 0);
   return true;
@@ -264,7 +247,8 @@ bool BundleAdjuster::Solve(Reconstruction* reconstruction) {
   problem_ = std::make_unique<ceres::Problem>(problem_options);
 
   const auto loss_function =
-      std::unique_ptr<ceres::LossFunction>(options_.CreateLossFunction());
+      std::unique_ptr<ceres::LossFunction>(CreateLossFunction(
+          options_.loss_function_type, options_.loss_function_scale));
   SetUp(reconstruction, loss_function.get());
 
   if (problem_->NumResiduals() == 0) {
@@ -577,7 +561,8 @@ bool RigBundleAdjuster::Solve(Reconstruction* reconstruction,
   problem_ = std::make_unique<ceres::Problem>(problem_options);
 
   const auto loss_function =
-      std::unique_ptr<ceres::LossFunction>(options_.CreateLossFunction());
+      std::unique_ptr<ceres::LossFunction>(CreateLossFunction(
+          options_.loss_function_type, options_.loss_function_scale));
   SetUp(reconstruction, camera_rigs, loss_function.get());
 
   if (problem_->NumResiduals() == 0) {

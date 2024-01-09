@@ -37,6 +37,7 @@ COLMAP_ADD_LIBRARY(
         affine_transform.h affine_transform.cc
         alignment.h alignment.cc
         bundle_adjustment.h bundle_adjustment.cc
+        ceres_utils.h ceres_utils.cc
         coordinate_frame.h coordinate_frame.cc
         cost_functions.h
         essential_matrix.h essential_matrix.cc
@@ -47,6 +48,7 @@ COLMAP_ADD_LIBRARY(
         generalized_relative_pose.h generalized_relative_pose.cc
         homography_matrix.h homography_matrix.cc
         pose.h pose.cc
+        pose_graph_optimization.h pose_graph_optimization.cc
         generalized_pose.h generalized_pose.cc
         similarity_transform.h
         translation_transform.h
