@@ -29,6 +29,7 @@
 
 #include "colmap/controllers/incremental_mapper.h"
 
+#include "colmap/estimators/ceres_utils.h"
 #include "colmap/util/misc.h"
 
 namespace colmap {
@@ -92,8 +93,7 @@ void IterativeLocalRefinement(const IncrementalMapperOptions& options,
       break;
     }
     // Only use robust cost function for first iteration.
-    ba_options.loss_function_type =
-        BundleAdjustmentOptions::LossFunctionType::TRIVIAL;
+    ba_options.loss_function_type = LossFunctionType::TRIVIAL;
   }
   mapper->ClearModifiedPoints3D();
 }
@@ -221,8 +221,7 @@ BundleAdjustmentOptions IncrementalMapperOptions::LocalBundleAdjustment()
   options.min_num_residuals_for_multi_threading =
       ba_min_num_residuals_for_multi_threading;
   options.loss_function_scale = 1.0;
-  options.loss_function_type =
-      BundleAdjustmentOptions::LossFunctionType::SOFT_L1;
+  options.loss_function_type = LossFunctionType::SOFT_L1;
   return options;
 }
 
@@ -247,8 +246,7 @@ BundleAdjustmentOptions IncrementalMapperOptions::GlobalBundleAdjustment()
   options.refine_extra_params = ba_refine_extra_params;
   options.min_num_residuals_for_multi_threading =
       ba_min_num_residuals_for_multi_threading;
-  options.loss_function_type =
-      BundleAdjustmentOptions::LossFunctionType::TRIVIAL;
+  options.loss_function_type = LossFunctionType::TRIVIAL;
   return options;
 }
 
