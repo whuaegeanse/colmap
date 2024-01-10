@@ -48,8 +48,8 @@ struct PoseGraphOptimizationOptions {
   // Scaling factor determines residual at which robustification takes place.
   double loss_function_scale = 1.0;
 
-  // Whether to refine the extrinsic parameter group.
-  bool refine_extrinsics = true;
+  // Whether to refine the center parameter group.
+  bool refine_center = true;
 
   // Whether to print a final summary.
   bool print_summary = true;
