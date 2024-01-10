@@ -42,6 +42,7 @@ struct Rigid3d {
  public:
   Eigen::Quaterniond rotation = Eigen::Quaterniond::Identity();
   Eigen::Vector3d translation = Eigen::Vector3d::Zero();
+  Eigen::Vector3d center = Eigen::Vector3d::Zero();
 
   Rigid3d() = default;
   Rigid3d(const Eigen::Quaterniond& rotation,
@@ -54,6 +55,10 @@ struct Rigid3d {
     matrix.col(3) = translation;
     return matrix;
   }
+
+  inline void UpdateCenter() { center = rotation.inverse() * -translation; }
+
+  inline void UpdateTranslation() { translation = rotation * -center; }
 };
 
 // Return inverse transform.

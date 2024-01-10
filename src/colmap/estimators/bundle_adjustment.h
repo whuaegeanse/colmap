@@ -60,6 +60,12 @@ struct BundleAdjustmentOptions {
   // Whether to refine the extrinsic parameter group.
   bool refine_extrinsics = true;
 
+  // Whether to refine the rotation parameter group.
+  bool refine_rotation = true;
+
+  // Whether to refine the center parameter group.
+  bool refine_center = true;
+
   // Whether to print a final summary.
   bool print_summary = true;
 

@@ -200,10 +200,11 @@ bool RefineGeneralizedAbsolutePose(const AbsolutePoseRefinementOptions& options,
 
     ceres::CostFunction* cost_function = nullptr;
     switch (cameras->at(camera_idx).model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                \
-  case CameraModel::model_id:                                         \
-    cost_function =                                                   \
-        RigReprojErrorCostFunction<CameraModel>::Create(points2D[i]); \
+#define CAMERA_MODEL_CASE(CameraModel)                                 \
+  case CameraModel::model_id:                                          \
+    cost_function =                                                    \
+        translantion::RigReprojErrorCostFunction<CameraModel>::Create( \
+            points2D[i]);                                              \
     break;
 
       CAMERA_MODEL_SWITCH_CASES

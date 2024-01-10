@@ -361,10 +361,10 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
 
     if (constant_cam_pose) {
       switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-        image.CamFromWorld(), point2D.xy);                                    \
+#define CAMERA_MODEL_CASE(CameraModel)                                 \
+  case CameraModel::model_id:                                          \
+    cost_function = translantion::ReprojErrorConstantPoseCostFunction< \
+        CameraModel>::Create(image.CamFromWorld(), point2D.xy);        \
     break;
 
         CAMERA_MODEL_SWITCH_CASES
@@ -376,9 +376,11 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
           cost_function, loss_function, point3D.xyz.data(), camera_params);
     } else {
       switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
+#define CAMERA_MODEL_CASE(CameraModel)                              \
+  case CameraModel::model_id:                                       \
+    cost_function =                                                 \
+        translantion::ReprojErrorCostFunction<CameraModel>::Create( \
+            point2D.xy);                                            \
     break;
 
         CAMERA_MODEL_SWITCH_CASES
@@ -451,10 +453,10 @@ void BundleAdjuster::AddPointToProblem(const point3D_t point3D_id,
     ceres::CostFunction* cost_function = nullptr;
 
     switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-        image.CamFromWorld(), point2D.xy);                                    \
+#define CAMERA_MODEL_CASE(CameraModel)                                 \
+  case CameraModel::model_id:                                          \
+    cost_function = translantion::ReprojErrorConstantPoseCostFunction< \
+        CameraModel>::Create(image.CamFromWorld(), point2D.xy);        \
     break;
 
       CAMERA_MODEL_SWITCH_CASES
@@ -710,10 +712,10 @@ void RigBundleAdjuster::AddImageToProblem(const image_t image_id,
     if (camera_rig == nullptr) {
       if (constant_cam_pose) {
         switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-        image.CamFromWorld(), point2D.xy);                                    \
+#define CAMERA_MODEL_CASE(CameraModel)                                 \
+  case CameraModel::model_id:                                          \
+    cost_function = translantion::ReprojErrorConstantPoseCostFunction< \
+        CameraModel>::Create(image.CamFromWorld(), point2D.xy);        \
     break;
 
           CAMERA_MODEL_SWITCH_CASES
@@ -725,9 +727,11 @@ void RigBundleAdjuster::AddImageToProblem(const image_t image_id,
             cost_function, loss_function, point3D.xyz.data(), camera_params);
       } else {
         switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
+#define CAMERA_MODEL_CASE(CameraModel)                              \
+  case CameraModel::model_id:                                       \
+    cost_function =                                                 \
+        translantion::ReprojErrorCostFunction<CameraModel>::Create( \
+            point2D.xy);                                            \
     break;
 
           CAMERA_MODEL_SWITCH_CASES
@@ -744,11 +748,12 @@ void RigBundleAdjuster::AddImageToProblem(const image_t image_id,
       }
     } else {
       switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                               \
-  case CameraModel::model_id:                                        \
-    cost_function =                                                  \
-        RigReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
-                                                                     \
+#define CAMERA_MODEL_CASE(CameraModel)                                 \
+  case CameraModel::model_id:                                          \
+    cost_function =                                                    \
+        translantion::RigReprojErrorCostFunction<CameraModel>::Create( \
+            point2D.xy);                                               \
+                                                                       \
     break;
 
         CAMERA_MODEL_SWITCH_CASES
@@ -827,14 +832,14 @@ void RigBundleAdjuster::AddPointToProblem(const point3D_t point3D_id,
     ceres::CostFunction* cost_function = nullptr;
 
     switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-        image.CamFromWorld(), point2D.xy);                                    \
-    problem_->AddResidualBlock(cost_function,                                 \
-                               loss_function,                                 \
-                               point3D.xyz.data(),                            \
-                               camera.params.data());                         \
+#define CAMERA_MODEL_CASE(CameraModel)                                 \
+  case CameraModel::model_id:                                          \
+    cost_function = translantion::ReprojErrorConstantPoseCostFunction< \
+        CameraModel>::Create(image.CamFromWorld(), point2D.xy);        \
+    problem_->AddResidualBlock(cost_function,                          \
+                               loss_function,                          \
+                               point3D.xyz.data(),                     \
+                               camera.params.data());                  \
     break;
 
       CAMERA_MODEL_SWITCH_CASES

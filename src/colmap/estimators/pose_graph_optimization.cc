@@ -329,7 +329,8 @@ void PoseGraphOptimization::AddPairToProblem(
   double weight_position = 1.0;
 
   // Add residuals to PGO problem.
-  ceres::CostFunction* cost_function = PoseGraphErrorCostFunction::Create(
+  ceres::CostFunction* cost_function =
+      translantion::PoseGraphErrorCostFunction::Create(
       q_ab_measured, p_ab_measured, weight_rotation, weight_position);
 
   problem_->AddResidualBlock(cost_function,
