@@ -212,9 +212,8 @@ bool PoseGraphOptimization::Solve(Reconstruction* reconstruction) {
   problem_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   problem_ = std::make_unique<ceres::Problem>(problem_options);
 
-  const auto loss_function =
-      std::unique_ptr<ceres::LossFunction>(CreateLossFunction(
-          options_.loss_function_type, options_.loss_function_scale));
+  std::unique_ptr<ceres::LossFunction> loss_function(CreateLossFunction(
+      options_.loss_function_type, options_.loss_function_scale));
   SetUp(reconstruction, loss_function.get());
 
   if (problem_->NumResiduals() == 0) {
