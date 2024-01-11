@@ -80,7 +80,7 @@ struct PoseGraphOptimizationOptions {
   bool Check() const;
 };
 
-// Configuration container to setup bundle adjustment problems.
+// Configuration container to setup pose graph optimization problems.
 class PoseGraphOptimizationConfig {
  public:
   PoseGraphOptimizationConfig();
