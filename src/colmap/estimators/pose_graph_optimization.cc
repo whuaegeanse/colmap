@@ -258,7 +258,7 @@ bool PoseGraphOptimization::Solve(Reconstruction* reconstruction) {
   ceres::Solve(solver_options, problem_.get(), &summary_);
 
   if (options_.print_summary) {
-    PrintHeading2("Bundle adjustment report");
+    PrintHeading2("Pose graph optimization report");
     PrintSolverSummary(summary_);
   }
 

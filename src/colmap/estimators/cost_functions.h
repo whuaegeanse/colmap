@@ -437,6 +437,42 @@ class PoseGraphErrorCostFunction {
   double weight_position_;
 };
 
+class Point3DErrorCostFunction {
+ public:
+  Point3DErrorCostFunction(const Eigen::Vector3d& p_measured,
+                           const double weight)
+      : p_measured_(p_measured), weight_(weight) {}
+
+  static ceres::CostFunction* Create(const Eigen::Vector3d& p_measured,
+                                     const double weight_ = 1.0) {
+    return (new ceres::AutoDiffCostFunction<Point3DErrorCostFunction, 3, 4, 3>(
+        new Point3DErrorCostFunction(p_measured, weight_)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const cam_from_world_rotation,
+                  const T* const cam_from_world_translation,
+                  T* residuals) const {
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_a(cam_from_world_translation);
+    Eigen::Map<const Eigen::Quaternion<T>> q_a(cam_from_world_rotation);
+
+    Eigen::Quaternion<T> q_a_inverse = q_a.conjugate();
+    Eigen::Matrix<T, 3, 1> p_estimated = q_a_inverse * (-t_a);
+
+    // Compute the residuals.
+    // [ position         ]   [ delta_p          ]
+    Eigen::Map<Eigen::Matrix<T, 3, 1>> residuals_ref(residuals);
+    residuals_ref = static_cast<T>(weight_) *
+                    (p_estimated - p_measured_.template cast<T>());
+
+    return true;
+  }
+
+ private:
+  Eigen::Vector3d p_measured_;
+  double weight_;
+};
+
 }  // namespace translantion
 
 namespace center {
@@ -697,16 +733,16 @@ class PoseGraphErrorCostFunction {
   }
 
   template <typename T>
-  bool operator()(const T* const cam1_from_world_rotation,
-                  const T* const cam1_from_world_center,
-                  const T* const cam2_from_world_rotation,
-                  const T* const cam2_from_world_center,
+  bool operator()(const T* const a_cam_from_world_rotation,
+                  const T* const a_cam_from_world_center,
+                  const T* const b_cam_from_world_rotation,
+                  const T* const b_cam_from_world_center,
                   T* residuals) const {
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> p_a(cam1_from_world_center);
-    Eigen::Map<const Eigen::Quaternion<T>> q_a(cam1_from_world_rotation);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> p_a(a_cam_from_world_center);
+    Eigen::Map<const Eigen::Quaternion<T>> q_a(a_cam_from_world_rotation);
 
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> p_b(cam2_from_world_center);
-    Eigen::Map<const Eigen::Quaternion<T>> q_b(cam2_from_world_rotation);
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> p_b(b_cam_from_world_center);
+    Eigen::Map<const Eigen::Quaternion<T>> q_b(b_cam_from_world_rotation);
 
     // Compute the relative transformation between the two frames.
     Eigen::Quaternion<T> q_a_inverse = q_a.conjugate();
@@ -738,6 +774,36 @@ class PoseGraphErrorCostFunction {
   Eigen::Vector3d p_ab_measured_;
   double weight_rotation_;
   double weight_position_;
+};
+
+class Point3DErrorCostFunction {
+ public:
+  Point3DErrorCostFunction(const Eigen::Vector3d& p_measured,
+                           const double weight)
+      : p_measured_(p_measured), weight_(weight) {}
+
+  static ceres::CostFunction* Create(const Eigen::Vector3d& p_measured,
+                                     const double weight = 1.0) {
+    return (new ceres::AutoDiffCostFunction<Point3DErrorCostFunction, 3, 3>(
+        new Point3DErrorCostFunction(p_measured, weight)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const cam_from_world_center, T* residuals) const {
+    Eigen::Map<const Eigen::Matrix<T, 3, 1>> p_estimated(cam_from_world_center);
+
+    // Compute the residuals.
+    // [ position         ]   [ delta_p          ]
+    Eigen::Map<Eigen::Matrix<T, 3, 1>> residuals_ref(residuals);
+    residuals_ref = static_cast<T>(weight_) *
+                    (p_estimated - p_measured_.template cast<T>());
+
+    return true;
+  }
+
+ private:
+  Eigen::Vector3d p_measured_;
+  double weight_;
 };
 
 }  // namespace center

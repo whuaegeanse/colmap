@@ -51,6 +51,12 @@ struct PoseGraphOptimizationOptions {
   // Whether to refine the center parameter group.
   bool refine_center = true;
 
+  // Whether to use prior rotation as constriant.
+  bool use_prior_rotation = true;
+
+  // Whether to use prior center as constriant.
+  bool use_prior_center = true;
+
   // Whether to print a final summary.
   bool print_summary = true;
 
