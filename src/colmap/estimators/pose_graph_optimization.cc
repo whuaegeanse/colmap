@@ -353,7 +353,7 @@ void PoseGraphOptimization::AddPairToProblem(
     double weight_rotation = 1.0;
     double weight_position = 1.0;
 
-    // Add residuals to PGO problem.
+    // Add residuals to pose graph optimization problem.
     ceres::CostFunction* cost_function =
         center::PoseGraphErrorCostFunction::Create(
             q_ab_measured, p_ab_measured, weight_rotation, weight_position);
@@ -397,7 +397,7 @@ void PoseGraphOptimization::AddPairToProblem(
     double weight_rotation = 1.0;
     double weight_position = 1.0;
 
-    // Add residuals to PGO problem.
+    // Add residuals to pose graph optimization problem.
     ceres::CostFunction* cost_function =
         translantion::PoseGraphErrorCostFunction::Create(
             q_ab_measured, p_ab_measured, weight_rotation, weight_position);
@@ -452,7 +452,7 @@ void PoseGraphOptimization::AddPriorToProblem(
     Eigen::Vector3d p_measured;
     double weight = 1.0;
 
-    // Add residuals to PGO problem.
+    // Add residuals to pose graph optimization problem.
     ceres::CostFunction* cost_function =
         center::Point3DErrorCostFunction::Create(p_measured, weight);
 
@@ -477,7 +477,7 @@ void PoseGraphOptimization::AddPriorToProblem(
     Eigen::Vector3d p_measured;
     double weight = 1.0;
 
-    // Add residuals to PGO problem.
+    // Add residuals to pose graph optimization problem.
     ceres::CostFunction* cost_function =
         translantion::Point3DErrorCostFunction::Create(p_measured, weight);
 
