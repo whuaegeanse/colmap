@@ -152,6 +152,12 @@ bool PoseGraphOptimizationConfig::HasConstantCamPositions(
 
 void PoseGraphOptimizationConfig::AddImagePair(image_pair_t pair_id) {
   image_pairs_.emplace(pair_id);
+
+  image_t image_id1, image_id2;
+  Database::PairIdToImagePair(pair_id, &image_id1, &image_id2);
+
+  image_ids_.emplace(image_id1);
+  image_ids_.emplace(image_id2);
 }
 
 bool PoseGraphOptimizationConfig::HasImagePair(image_pair_t pair_id) {
@@ -206,7 +212,8 @@ PoseGraphOptimization::PoseGraphOptimization(
 
 bool PoseGraphOptimization::Solve(Reconstruction* reconstruction) {
   CHECK_NOTNULL(reconstruction);
-  CHECK(!problem_) << "Cannot use the same BundleAdjuster multiple times";
+  CHECK(!problem_)
+      << "Cannot use the same PoseGraphOptimization multiple times";
 
   ceres::Problem::Options problem_options;
   problem_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -229,12 +236,12 @@ bool PoseGraphOptimization::Solve(Reconstruction* reconstruction) {
   const size_t kMaxNumImagesDirectSparseSolver = 1000;
   const size_t num_images = config_.NumImages();
   if (num_images <= kMaxNumImagesDirectDenseSolver) {
-    solver_options.linear_solver_type = ceres::DENSE_SCHUR;
+    solver_options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
   } else if (num_images <= kMaxNumImagesDirectSparseSolver && has_sparse) {
-    solver_options.linear_solver_type = ceres::SPARSE_SCHUR;
+    solver_options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   } else {  // Indirect sparse (preconditioned CG) solver.
-    solver_options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-    solver_options.preconditioner_type = ceres::SCHUR_JACOBI;
+    solver_options.linear_solver_type = ceres::CGNR;
+    solver_options.preconditioner_type = ceres::JACOBI;
   }
 
   if (problem_->NumResiduals() <
@@ -290,6 +297,12 @@ void PoseGraphOptimization::SetUp(Reconstruction* reconstruction,
   // Do not change order of instructions!
   for (const image_pair_t pair_id : config_.ImagePairs()) {
     AddPairToProblem(pair_id, reconstruction, loss_function);
+  }
+
+  if (options_.use_prior_center) {
+    for (image_t image_id : config_.Images()) {
+      AddPriorToProblem(image_id, reconstruction, loss_function);
+    }
   }
 }
 
@@ -399,7 +412,7 @@ void PoseGraphOptimization::AddPairToProblem(
     // Set pose parameterization.
     if (!constant_cam_pose1) {
       SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
-      const std::vector<int>& constant_position_idxs =
+      const auto& constant_position_idxs =
           config_.ConstantCamPositions(image_id1);
       SetSubsetManifold(3,
                         constant_position_idxs,
@@ -409,12 +422,78 @@ void PoseGraphOptimization::AddPairToProblem(
 
     if (!constant_cam_pose2) {
       SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
-      const std::vector<int>& constant_position_idxs =
+      const auto& constant_position_idxs =
           config_.ConstantCamPositions(image_id2);
       SetSubsetManifold(3,
                         constant_position_idxs,
                         problem_.get(),
                         cam_from_world_translation2);
+    }
+  }
+}
+
+void PoseGraphOptimization::AddPriorToProblem(
+    image_t image_id,
+    Reconstruction* reconstruction,
+    ceres::LossFunction* loss_function) {
+  Image& image = reconstruction->Image(image_id);
+
+  const bool constant_cam_pose = config_.HasConstantCamPose(image_id);
+
+  if (constant_cam_pose) {
+    return;
+  }
+
+  if (options_.refine_center) {
+    double* cam_from_world_rotation =
+        image.CamFromWorld().rotation.coeffs().data();
+    double* cam_from_world_center = image.CamFromWorld().center.data();
+
+    Eigen::Vector3d p_measured;
+    double weight = 1.0;
+
+    // Add residuals to PGO problem.
+    ceres::CostFunction* cost_function =
+        center::Point3DErrorCostFunction::Create(p_measured, weight);
+
+    problem_->AddResidualBlock(cost_function,
+                               loss_function,
+                               cam_from_world_rotation,
+                               cam_from_world_center);
+
+    // Set pose parameterization.
+    if (!constant_cam_pose) {
+      const auto& constant_position_idxs =
+          config_.ConstantCamPositions(image_id);
+      SetSubsetManifold(
+          3, constant_position_idxs, problem_.get(), cam_from_world_center);
+    }
+  } else {
+    double* cam_from_world_rotation =
+        image.CamFromWorld().rotation.coeffs().data();
+    double* cam_from_world_translation =
+        image.CamFromWorld().translation.data();
+
+    Eigen::Vector3d p_measured;
+    double weight = 1.0;
+
+    // Add residuals to PGO problem.
+    ceres::CostFunction* cost_function =
+        translantion::Point3DErrorCostFunction::Create(p_measured, weight);
+
+    problem_->AddResidualBlock(cost_function,
+                               loss_function,
+                               cam_from_world_rotation,
+                               cam_from_world_translation);
+
+    // Set pose parameterization.
+    if (!constant_cam_pose) {
+      const auto& constant_position_idxs =
+          config_.ConstantCamPositions(image_id);
+      SetSubsetManifold(3,
+                        constant_position_idxs,
+                        problem_.get(),
+                        cam_from_world_translation);
     }
   }
 }
