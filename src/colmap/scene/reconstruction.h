@@ -32,6 +32,7 @@
 #include "colmap/geometry/sim3.h"
 #include "colmap/scene/camera.h"
 #include "colmap/scene/database.h"
+#include "colmap/scene/gcp.h"
 #include "colmap/scene/image.h"
 #include "colmap/scene/point2d.h"
 #include "colmap/scene/point3d.h"
@@ -73,12 +74,14 @@ class Reconstruction {
   inline size_t NumImages() const;
   inline size_t NumRegImages() const;
   inline size_t NumPoints3D() const;
+  inline size_t NumGCPs() const;
   inline size_t NumImagePairs() const;
 
   // Get const objects.
   inline const struct Camera& Camera(camera_t camera_id) const;
   inline const class Image& Image(image_t image_id) const;
   inline const struct Point3D& Point3D(point3D_t point3D_id) const;
+  inline const struct GCP& GCP(point3D_t point3D_id) const;
   inline const ImagePairStat& ImagePair(image_pair_t pair_id) const;
   inline ImagePairStat& ImagePair(image_t image_id1, image_t image_id2);
 
@@ -86,6 +89,7 @@ class Reconstruction {
   inline struct Camera& Camera(camera_t camera_id);
   inline class Image& Image(image_t image_id);
   inline struct Point3D& Point3D(point3D_t point3D_id);
+  inline struct GCP& GCP(point3D_t point3D_id);
   inline ImagePairStat& ImagePair(image_pair_t pair_id);
   inline const ImagePairStat& ImagePair(image_t image_id1,
                                         image_t image_id2) const;
@@ -95,6 +99,7 @@ class Reconstruction {
   inline const std::unordered_map<image_t, class Image>& Images() const;
   inline const std::vector<image_t>& RegImageIds() const;
   inline const std::unordered_map<point3D_t, struct Point3D>& Points3D() const;
+  inline const std::unordered_map<point3D_t, struct GCP>& GCPs() const;
   inline const std::unordered_map<image_pair_t, ImagePairStat>& ImagePairs()
       const;
 
@@ -105,6 +110,7 @@ class Reconstruction {
   inline bool ExistsCamera(camera_t camera_id) const;
   inline bool ExistsImage(image_t image_id) const;
   inline bool ExistsPoint3D(point3D_t point3D_id) const;
+  inline bool ExistsGCP(point3D_t point3D_id) const;
   inline bool ExistsImagePair(image_pair_t pair_id) const;
 
   // Load data from given `DatabaseCache`.
@@ -374,16 +380,20 @@ class Reconstruction {
   void ReadCamerasText(const std::string& path);
   void ReadImagesText(const std::string& path);
   void ReadPoints3DText(const std::string& path);
+  void ReadGCPsText(const std::string& path);
   void ReadCamerasBinary(const std::string& path);
   void ReadImagesBinary(const std::string& path);
   void ReadPoints3DBinary(const std::string& path);
+  void ReadGCPsBinary(const std::string& path);
 
   void WriteCamerasText(const std::string& path) const;
   void WriteImagesText(const std::string& path) const;
   void WritePoints3DText(const std::string& path) const;
+  void WriteGCPsText(const std::string& path) const;
   void WriteCamerasBinary(const std::string& path) const;
   void WriteImagesBinary(const std::string& path) const;
   void WritePoints3DBinary(const std::string& path) const;
+  void WriteGCPsBinary(const std::string& path) const;
 
   void SetObservationAsTriangulated(image_t image_id,
                                     point2D_t point2D_idx,
@@ -397,6 +407,8 @@ class Reconstruction {
   std::unordered_map<camera_t, struct Camera> cameras_;
   std::unordered_map<image_t, class Image> images_;
   std::unordered_map<point3D_t, struct Point3D> points3D_;
+
+  std::unordered_map<point3D_t, struct GCP> gcps_;
 
   std::unordered_map<image_pair_t, ImagePairStat> image_pair_stats_;
 
@@ -419,6 +431,8 @@ size_t Reconstruction::NumRegImages() const { return reg_image_ids_.size(); }
 
 size_t Reconstruction::NumPoints3D() const { return points3D_.size(); }
 
+size_t Reconstruction::NumGCPs() const { return gcps_.size(); }
+
 size_t Reconstruction::NumImagePairs() const {
   return image_pair_stats_.size();
 }
@@ -434,6 +448,10 @@ const class Image& Reconstruction::Image(const image_t image_id) const {
 const struct Point3D& Reconstruction::Point3D(
     const point3D_t point3D_id) const {
   return points3D_.at(point3D_id);
+}
+
+const struct GCP& Reconstruction::GCP(const point3D_t point3D_id) const {
+  return gcps_.at(point3D_id);
 }
 
 const Reconstruction::ImagePairStat& Reconstruction::ImagePair(
@@ -457,6 +475,10 @@ class Image& Reconstruction::Image(const image_t image_id) {
 
 struct Point3D& Reconstruction::Point3D(const point3D_t point3D_id) {
   return points3D_.at(point3D_id);
+}
+
+struct GCP& Reconstruction::GCP(const point3D_t point3D_id) {
+  return gcps_.at(point3D_id);
 }
 
 Reconstruction::ImagePairStat& Reconstruction::ImagePair(
@@ -486,6 +508,10 @@ const std::unordered_map<point3D_t, Point3D>& Reconstruction::Points3D() const {
   return points3D_;
 }
 
+const std::unordered_map<point3D_t, GCP>& Reconstruction::GCPs() const {
+  return gcps_;
+}
+
 const std::unordered_map<image_pair_t, Reconstruction::ImagePairStat>&
 Reconstruction::ImagePairs() const {
   return image_pair_stats_;
@@ -501,6 +527,10 @@ bool Reconstruction::ExistsImage(const image_t image_id) const {
 
 bool Reconstruction::ExistsPoint3D(const point3D_t point3D_id) const {
   return points3D_.find(point3D_id) != points3D_.end();
+}
+
+bool Reconstruction::ExistsGCP(const point3D_t point3D_id) const {
+  return gcps_.find(point3D_id) != gcps_.end();
 }
 
 bool Reconstruction::ExistsImagePair(const image_pair_t pair_id) const {

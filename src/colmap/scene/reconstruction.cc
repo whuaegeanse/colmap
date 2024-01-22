@@ -690,24 +690,28 @@ void Reconstruction::ReadText(const std::string& path) {
   ReadCamerasText(JoinPaths(path, "cameras.txt"));
   ReadImagesText(JoinPaths(path, "images.txt"));
   ReadPoints3DText(JoinPaths(path, "points3D.txt"));
+  ReadPoints3DText(JoinPaths(path, "gcps.txt"));
 }
 
 void Reconstruction::ReadBinary(const std::string& path) {
   ReadCamerasBinary(JoinPaths(path, "cameras.bin"));
   ReadImagesBinary(JoinPaths(path, "images.bin"));
   ReadPoints3DBinary(JoinPaths(path, "points3D.bin"));
+  ReadPoints3DBinary(JoinPaths(path, "gcps.bin"));
 }
 
 void Reconstruction::WriteText(const std::string& path) const {
   WriteCamerasText(JoinPaths(path, "cameras.txt"));
   WriteImagesText(JoinPaths(path, "images.txt"));
   WritePoints3DText(JoinPaths(path, "points3D.txt"));
+  WritePoints3DText(JoinPaths(path, "gcps.txt"));
 }
 
 void Reconstruction::WriteBinary(const std::string& path) const {
   WriteCamerasBinary(JoinPaths(path, "cameras.bin"));
   WriteImagesBinary(JoinPaths(path, "images.bin"));
   WritePoints3DBinary(JoinPaths(path, "points3D.bin"));
+  WritePoints3DBinary(JoinPaths(path, "gcps.bin"));
 }
 
 std::vector<PlyPoint> Reconstruction::ConvertToPLY() const {
@@ -1684,6 +1688,84 @@ void Reconstruction::ReadPoints3DText(const std::string& path) {
   }
 }
 
+void Reconstruction::ReadGCPsText(const std::string& path) {
+  gcps_.clear();
+
+  std::ifstream file(path);
+  CHECK(file.is_open()) << path;
+
+  std::string line;
+  std::string item;
+
+  while (std::getline(file, line)) {
+    StringTrim(&line);
+
+    if (line.empty() || line[0] == '#') {
+      continue;
+    }
+
+    std::stringstream line_stream(line);
+
+    // ID
+    std::getline(line_stream, item, ' ');
+    const point3D_t gcp_id = std::stoll(item);
+
+    struct GCP gcp;
+
+    // XYZ
+    std::getline(line_stream, item, ' ');
+    gcp.xyz(0) = std::stold(item);
+
+    std::getline(line_stream, item, ' ');
+    gcp.xyz(1) = std::stold(item);
+
+    std::getline(line_stream, item, ' ');
+    gcp.xyz(2) = std::stold(item);
+
+    // Color
+    std::getline(line_stream, item, ' ');
+    gcp.color(0) = static_cast<uint8_t>(std::stoi(item));
+
+    std::getline(line_stream, item, ' ');
+    gcp.color(1) = static_cast<uint8_t>(std::stoi(item));
+
+    std::getline(line_stream, item, ' ');
+    gcp.color(2) = static_cast<uint8_t>(std::stoi(item));
+
+    // ERROR
+    std::getline(line_stream, item, ' ');
+    gcp.error = std::stold(item);
+
+    // Accuracy
+    std::getline(line_stream, item, ' ');
+    gcp.accuracy_xy = std::stold(item);
+
+    std::getline(line_stream, item, ' ');
+    gcp.accuracy_z = std::stold(item);
+
+    // TRACK
+    while (!line_stream.eof()) {
+      TrackElement track_el;
+
+      std::getline(line_stream, item, ' ');
+      StringTrim(&item);
+      if (item.empty()) {
+        break;
+      }
+      track_el.image_id = std::stoul(item);
+
+      std::getline(line_stream, item, ' ');
+      track_el.point2D_idx = std::stoul(item);
+
+      gcp.track.AddElement(track_el);
+    }
+
+    gcp.track.Compress();
+
+    gcps_.emplace(gcp_id, std::move(gcp));
+  }
+}
+
 void Reconstruction::ReadCamerasBinary(const std::string& path) {
   std::ifstream file(path, std::ios::binary);
   CHECK(file.is_open()) << path;
@@ -1791,6 +1873,39 @@ void Reconstruction::ReadPoints3DBinary(const std::string& path) {
     point3D.track.Compress();
 
     points3D_.emplace(point3D_id, point3D);
+  }
+}
+
+void Reconstruction::ReadGCPsBinary(const std::string& path) {
+  std::ifstream file(path, std::ios::binary);
+  CHECK(file.is_open()) << path;
+
+  const size_t num_gcps = ReadBinaryLittleEndian<uint64_t>(&file);
+  for (size_t i = 0; i < num_gcps; ++i) {
+    struct GCP gcp;
+
+    const point3D_t gcp_id = ReadBinaryLittleEndian<point3D_t>(&file);
+
+    gcp.xyz(0) = ReadBinaryLittleEndian<double>(&file);
+    gcp.xyz(1) = ReadBinaryLittleEndian<double>(&file);
+    gcp.xyz(2) = ReadBinaryLittleEndian<double>(&file);
+    gcp.color(0) = ReadBinaryLittleEndian<uint8_t>(&file);
+    gcp.color(1) = ReadBinaryLittleEndian<uint8_t>(&file);
+    gcp.color(2) = ReadBinaryLittleEndian<uint8_t>(&file);
+    gcp.error = ReadBinaryLittleEndian<double>(&file);
+    gcp.accuracy_xy = ReadBinaryLittleEndian<double>(&file);
+    gcp.accuracy_z = ReadBinaryLittleEndian<double>(&file);
+    gcp.error = ReadBinaryLittleEndian<double>(&file);
+
+    const size_t track_length = ReadBinaryLittleEndian<uint64_t>(&file);
+    for (size_t j = 0; j < track_length; ++j) {
+      const image_t image_id = ReadBinaryLittleEndian<image_t>(&file);
+      const point2D_t point2D_idx = ReadBinaryLittleEndian<point2D_t>(&file);
+      gcp.track.AddElement(image_id, point2D_idx);
+    }
+    gcp.track.Compress();
+
+    gcps_.emplace(gcp_id, std::move(gcp));
   }
 }
 
@@ -1925,6 +2040,47 @@ void Reconstruction::WritePoints3DText(const std::string& path) const {
   }
 }
 
+void Reconstruction::WriteGCPsText(const std::string& path) const {
+  std::ofstream file(path, std::ios::trunc);
+  CHECK(file.is_open()) << path;
+
+  // Ensure that we don't loose any precision by storing in text.
+  file.precision(17);
+
+  file << "# GCP list with one line of data per point:" << std::endl;
+  file << "#   GCP_ID, X, Y, Z, R, G, B, ERROR, ACCURACY_XY, ACCURACY_Z, "
+          "TRACK[] as (IMAGE_ID, POINT2D_IDX)"
+       << std::endl;
+  file << "# Number of points: " << points3D_.size()
+       << ", mean track length: " << ComputeMeanTrackLength() << std::endl;
+
+  for (const auto& gcp : gcps_) {
+    file << gcp.first << " ";
+    file << gcp.second.xyz(0) << " ";
+    file << gcp.second.xyz(1) << " ";
+    file << gcp.second.xyz(2) << " ";
+    file << static_cast<int>(gcp.second.color(0)) << " ";
+    file << static_cast<int>(gcp.second.color(1)) << " ";
+    file << static_cast<int>(gcp.second.color(2)) << " ";
+    file << gcp.second.error << " ";
+    file << gcp.second.accuracy_xy << " ";
+    file << gcp.second.accuracy_z << " ";
+
+    std::ostringstream line;
+    line.precision(17);
+
+    for (const auto& track_el : gcp.second.track.Elements()) {
+      line << track_el.image_id << " ";
+      line << track_el.point2D_idx << " ";
+    }
+
+    std::string line_string = line.str();
+    line_string = line_string.substr(0, line_string.size() - 1);
+
+    file << line_string << std::endl;
+  }
+}
+
 void Reconstruction::WriteCamerasBinary(const std::string& path) const {
   std::ofstream file(path, std::ios::trunc | std::ios::binary);
   CHECK(file.is_open()) << path;
@@ -1997,6 +2153,32 @@ void Reconstruction::WritePoints3DBinary(const std::string& path) const {
 
     WriteBinaryLittleEndian<uint64_t>(&file, point3D.second.track.Length());
     for (const auto& track_el : point3D.second.track.Elements()) {
+      WriteBinaryLittleEndian<image_t>(&file, track_el.image_id);
+      WriteBinaryLittleEndian<point2D_t>(&file, track_el.point2D_idx);
+    }
+  }
+}
+
+void Reconstruction::WriteGCPsBinary(const std::string& path) const {
+  std::ofstream file(path, std::ios::trunc | std::ios::binary);
+  CHECK(file.is_open()) << path;
+
+  WriteBinaryLittleEndian<uint64_t>(&file, gcps_.size());
+
+  for (const auto& gcp : gcps_) {
+    WriteBinaryLittleEndian<point3D_t>(&file, gcp.first);
+    WriteBinaryLittleEndian<double>(&file, gcp.second.xyz(0));
+    WriteBinaryLittleEndian<double>(&file, gcp.second.xyz(1));
+    WriteBinaryLittleEndian<double>(&file, gcp.second.xyz(2));
+    WriteBinaryLittleEndian<uint8_t>(&file, gcp.second.color(0));
+    WriteBinaryLittleEndian<uint8_t>(&file, gcp.second.color(1));
+    WriteBinaryLittleEndian<uint8_t>(&file, gcp.second.color(2));
+    WriteBinaryLittleEndian<double>(&file, gcp.second.error);
+    WriteBinaryLittleEndian<double>(&file, gcp.second.accuracy_xy);
+    WriteBinaryLittleEndian<double>(&file, gcp.second.accuracy_z);
+
+    WriteBinaryLittleEndian<uint64_t>(&file, gcp.second.track.Length());
+    for (const auto& track_el : gcp.second.track.Elements()) {
       WriteBinaryLittleEndian<image_t>(&file, track_el.image_id);
       WriteBinaryLittleEndian<point2D_t>(&file, track_el.point2D_idx);
     }
