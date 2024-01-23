@@ -34,6 +34,7 @@
 #include "colmap/util/eigen_alignment.h"
 
 #include <Eigen/Eigenvalues>
+#include <ceres/rotation.h>
 
 namespace colmap {
 
@@ -111,6 +112,27 @@ Eigen::Matrix3d EulerAnglesToRotationMatrix(const double rx,
   const Eigen::Matrix3d Rz =
       Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()).toRotationMatrix();
   return Rz * Ry * Rx;
+}
+
+void RotationMatrixToAxisAngles(const Eigen::Matrix3d& R,
+                                double* ax,
+                                double* ay,
+                                double* az) {
+  double angle_axis[3];
+  ceres::RotationMatrixToAngleAxis((const double*)R.data(), angle_axis);
+
+  *ax = angle_axis[0];
+  *ay = angle_axis[1];
+  *az = angle_axis[2];
+}
+
+Eigen::Matrix3d AxisAnglesToRotationMatrix(const double ax,
+                                           const double ay,
+                                           const double az) {
+  Eigen::Matrix3d R;
+  double angle_axis[3] = {ax, ay, az};
+  ceres::AngleAxisToRotationMatrix(angle_axis, (double*)R.data());
+  return R;
 }
 
 Eigen::Quaterniond AverageQuaternions(

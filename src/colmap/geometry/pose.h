@@ -76,6 +76,29 @@ void RotationMatrixToEulerAngles(const Eigen::Matrix3d& R,
 // @return               3x3 rotation matrix.
 Eigen::Matrix3d EulerAnglesToRotationMatrix(double rx, double ry, double rz);
 
+// The conversion of a rotation matrix to the angle-axis form is
+// numerically problematic when then rotation angle is close to zero
+// or to Pi. The following implementation detects when these two cases
+// occurs and deals with them by taking code paths that are guaranteed
+// to not perform division by a small number.
+//
+// @param R              3x3 rotation matrix.
+// @param ax, ay, az     axis angles in radians.
+void RotationMatrixToAxisAngles(const Eigen::Matrix3d& R,
+                                double* ax,
+                                double* ay,
+                                double* az);
+// The conversion of angle-axis to the rotation matrix form is
+// numerically problematic when then angle-axis is close to zero
+// or to Pi.
+//
+// @param ax, ay, az     axis angles in radians.
+//
+// @return               3x3 rotation matrix.
+Eigen::Matrix3d AxisAnglesToRotationMatrix(const double ax,
+                                           const double ay,
+                                           const double az);
+
 // Compute the weighted average of multiple Quaternions according to:
 //
 //    Markley, F. Landis, et al. "Averaging quaternions."
