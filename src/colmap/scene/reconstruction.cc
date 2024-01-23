@@ -673,11 +673,13 @@ void Reconstruction::UpdatePoint3DErrors() {
 void Reconstruction::Read(const std::string& path) {
   if (ExistsFile(JoinPaths(path, "cameras.bin")) &&
       ExistsFile(JoinPaths(path, "images.bin")) &&
-      ExistsFile(JoinPaths(path, "points3D.bin"))) {
+      ExistsFile(JoinPaths(path, "points3D.bin")) &&
+      ExistsFile(JoinPaths(path, "gcps.bin"))) {
     ReadBinary(path);
   } else if (ExistsFile(JoinPaths(path, "cameras.txt")) &&
              ExistsFile(JoinPaths(path, "images.txt")) &&
-             ExistsFile(JoinPaths(path, "points3D.txt"))) {
+             ExistsFile(JoinPaths(path, "points3D.txt")) &&
+             ExistsFile(JoinPaths(path, "gcps.txt"))) {
     ReadText(path);
   } else {
     LOG(FATAL) << "cameras, images, points3D files do not exist at " << path;
@@ -690,28 +692,28 @@ void Reconstruction::ReadText(const std::string& path) {
   ReadCamerasText(JoinPaths(path, "cameras.txt"));
   ReadImagesText(JoinPaths(path, "images.txt"));
   ReadPoints3DText(JoinPaths(path, "points3D.txt"));
-  ReadPoints3DText(JoinPaths(path, "gcps.txt"));
+  ReadGCPsText(JoinPaths(path, "gcps.txt"));
 }
 
 void Reconstruction::ReadBinary(const std::string& path) {
   ReadCamerasBinary(JoinPaths(path, "cameras.bin"));
   ReadImagesBinary(JoinPaths(path, "images.bin"));
   ReadPoints3DBinary(JoinPaths(path, "points3D.bin"));
-  ReadPoints3DBinary(JoinPaths(path, "gcps.bin"));
+  ReadGCPsBinary(JoinPaths(path, "gcps.bin"));
 }
 
 void Reconstruction::WriteText(const std::string& path) const {
   WriteCamerasText(JoinPaths(path, "cameras.txt"));
   WriteImagesText(JoinPaths(path, "images.txt"));
   WritePoints3DText(JoinPaths(path, "points3D.txt"));
-  WritePoints3DText(JoinPaths(path, "gcps.txt"));
+  WriteGCPsText(JoinPaths(path, "gcps.txt"));
 }
 
 void Reconstruction::WriteBinary(const std::string& path) const {
   WriteCamerasBinary(JoinPaths(path, "cameras.bin"));
   WriteImagesBinary(JoinPaths(path, "images.bin"));
   WritePoints3DBinary(JoinPaths(path, "points3D.bin"));
-  WritePoints3DBinary(JoinPaths(path, "gcps.bin"));
+  WriteGCPsBinary(JoinPaths(path, "gcps.bin"));
 }
 
 std::vector<PlyPoint> Reconstruction::ConvertToPLY() const {
