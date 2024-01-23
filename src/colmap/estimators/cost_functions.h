@@ -437,16 +437,15 @@ class PoseGraphErrorCostFunction {
   double weight_position_;
 };
 
-class Point3DErrorCostFunction {
+class GNSSErrorCostFunction {
  public:
-  Point3DErrorCostFunction(const Eigen::Vector3d& p_measured,
-                           const double weight)
+  GNSSErrorCostFunction(const Eigen::Vector3d& p_measured, const double weight)
       : p_measured_(p_measured), weight_(weight) {}
 
   static ceres::CostFunction* Create(const Eigen::Vector3d& p_measured,
                                      const double weight_ = 1.0) {
-    return (new ceres::AutoDiffCostFunction<Point3DErrorCostFunction, 3, 4, 3>(
-        new Point3DErrorCostFunction(p_measured, weight_)));
+    return (new ceres::AutoDiffCostFunction<GNSSErrorCostFunction, 3, 4, 3>(
+        new GNSSErrorCostFunction(p_measured, weight_)));
   }
 
   template <typename T>
@@ -776,16 +775,15 @@ class PoseGraphErrorCostFunction {
   double weight_position_;
 };
 
-class Point3DErrorCostFunction {
+class GNSSErrorCostFunction {
  public:
-  Point3DErrorCostFunction(const Eigen::Vector3d& p_measured,
-                           const double weight)
+  GNSSErrorCostFunction(const Eigen::Vector3d& p_measured, const double weight)
       : p_measured_(p_measured), weight_(weight) {}
 
   static ceres::CostFunction* Create(const Eigen::Vector3d& p_measured,
                                      const double weight = 1.0) {
-    return (new ceres::AutoDiffCostFunction<Point3DErrorCostFunction, 3, 3>(
-        new Point3DErrorCostFunction(p_measured, weight)));
+    return (new ceres::AutoDiffCostFunction<GNSSErrorCostFunction, 3, 3>(
+        new GNSSErrorCostFunction(p_measured, weight)));
   }
 
   template <typename T>
