@@ -454,7 +454,7 @@ void PoseGraphOptimization::AddPriorToProblem(
 
     // Add residuals to pose graph optimization problem.
     ceres::CostFunction* cost_function =
-        center::GNSSErrorCostFunction::Create(p_measured, weight);
+        center::PoseCenterErrorCostFunction::Create(p_measured, weight);
 
     problem_->AddResidualBlock(cost_function,
                                loss_function,
@@ -479,7 +479,7 @@ void PoseGraphOptimization::AddPriorToProblem(
 
     // Add residuals to pose graph optimization problem.
     ceres::CostFunction* cost_function =
-        translantion::GNSSErrorCostFunction::Create(p_measured, weight);
+        translantion::PoseCenterErrorCostFunction::Create(p_measured, weight);
 
     problem_->AddResidualBlock(cost_function,
                                loss_function,

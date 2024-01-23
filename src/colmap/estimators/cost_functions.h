@@ -437,15 +437,17 @@ class PoseGraphErrorCostFunction {
   double weight_position_;
 };
 
-class GNSSErrorCostFunction {
+class PoseCenterErrorCostFunction {
  public:
-  GNSSErrorCostFunction(const Eigen::Vector3d& p_measured, const double weight)
+  PoseCenterErrorCostFunction(const Eigen::Vector3d& p_measured,
+                              const double weight)
       : p_measured_(p_measured), weight_(weight) {}
 
   static ceres::CostFunction* Create(const Eigen::Vector3d& p_measured,
                                      const double weight_ = 1.0) {
-    return (new ceres::AutoDiffCostFunction<GNSSErrorCostFunction, 3, 4, 3>(
-        new GNSSErrorCostFunction(p_measured, weight_)));
+    return (
+        new ceres::AutoDiffCostFunction<PoseCenterErrorCostFunction, 3, 4, 3>(
+            new PoseCenterErrorCostFunction(p_measured, weight_)));
   }
 
   template <typename T>
@@ -815,15 +817,16 @@ class PoseGraphErrorCostFunction {
 };
 
 // Bundle adjustment cost function for variable center of pose.
-class GNSSErrorCostFunction {
+class PoseCenterErrorCostFunction {
  public:
-  GNSSErrorCostFunction(const Eigen::Vector3d& p_measured, const double weight)
+  PoseCenterErrorCostFunction(const Eigen::Vector3d& p_measured,
+                              const double weight)
       : p_measured_(p_measured), weight_(weight) {}
 
   static ceres::CostFunction* Create(const Eigen::Vector3d& p_measured,
                                      const double weight = 1.0) {
-    return (new ceres::AutoDiffCostFunction<GNSSErrorCostFunction, 3, 3>(
-        new GNSSErrorCostFunction(p_measured, weight)));
+    return (new ceres::AutoDiffCostFunction<PoseCenterErrorCostFunction, 3, 3>(
+        new PoseCenterErrorCostFunction(p_measured, weight)));
   }
 
   template <typename T>
