@@ -354,9 +354,8 @@ void PoseGraphOptimization::AddPairToProblem(
     double weight_position = 1.0;
 
     // Add residuals to pose graph optimization problem.
-    ceres::CostFunction* cost_function =
-        center::PoseGraphErrorCostFunction::Create(
-            q_ab_measured, p_ab_measured, weight_rotation, weight_position);
+    ceres::CostFunction* cost_function = center::PoseErrorCostFunction::Create(
+        q_ab_measured, p_ab_measured, weight_rotation, weight_position);
 
     problem_->AddResidualBlock(cost_function,
                                loss_function,
@@ -399,7 +398,7 @@ void PoseGraphOptimization::AddPairToProblem(
 
     // Add residuals to pose graph optimization problem.
     ceres::CostFunction* cost_function =
-        translantion::PoseGraphErrorCostFunction::Create(
+        translantion::PoseErrorCostFunction::Create(
             q_ab_measured, p_ab_measured, weight_rotation, weight_position);
 
     problem_->AddResidualBlock(cost_function,

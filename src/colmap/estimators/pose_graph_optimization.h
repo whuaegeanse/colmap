@@ -145,8 +145,8 @@ class PoseGraphOptimizationConfig {
   std::unordered_set<image_pair_t> prior_pairs_;
 };
 
-// Pose graph optimization based on Ceres-Solver. Enables most flexible configurations
-// and provides best solution quality.
+// Pose graph optimization based on Ceres-Solver. Enables most flexible
+// configurations and provides best solution quality.
 class PoseGraphOptimization {
  public:
   PoseGraphOptimization(const PoseGraphOptimizationOptions& options,

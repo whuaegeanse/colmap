@@ -368,12 +368,12 @@ class RigReprojErrorCostFunction {
 // where I is the information matrix which is the inverse of the covariance.
 //
 //
-class PoseGraphErrorCostFunction {
+class PoseErrorCostFunction {
  public:
-  PoseGraphErrorCostFunction(const Eigen::Quaterniond& q_ab_measured,
-                             const Eigen::Vector3d& p_ab_measured,
-                             const double weight_rotation,
-                             const double weight_position)
+  PoseErrorCostFunction(const Eigen::Quaterniond& q_ab_measured,
+                        const Eigen::Vector3d& p_ab_measured,
+                        const double weight_rotation,
+                        const double weight_position)
       : q_ab_measured_(q_ab_measured),
         p_ab_measured_(p_ab_measured),
         weight_rotation_(weight_rotation),
@@ -383,12 +383,12 @@ class PoseGraphErrorCostFunction {
                                      const Eigen::Vector3d& p_ab_measured,
                                      const double weight_rotation = 1.0,
                                      const double weight_position = 1.0) {
-    return (new ceres::
-                AutoDiffCostFunction<PoseGraphErrorCostFunction, 6, 4, 3, 4, 3>(
-                    new PoseGraphErrorCostFunction(q_ab_measured,
-                                                   p_ab_measured,
-                                                   weight_rotation,
-                                                   weight_position)));
+    return (
+        new ceres::AutoDiffCostFunction<PoseErrorCostFunction, 6, 4, 3, 4, 3>(
+            new PoseErrorCostFunction(q_ab_measured,
+                                      p_ab_measured,
+                                      weight_rotation,
+                                      weight_position)));
   }
 
   template <typename T>
@@ -749,12 +749,12 @@ class RigReprojErrorCostFunction {
 // where I is the information matrix which is the inverse of the covariance.
 //
 //
-class PoseGraphErrorCostFunction {
+class PoseErrorCostFunction {
  public:
-  PoseGraphErrorCostFunction(const Eigen::Quaterniond& q_ab_measured,
-                             const Eigen::Vector3d& p_ab_measured,
-                             const double weight_rotation,
-                             const double weight_position)
+  PoseErrorCostFunction(const Eigen::Quaterniond& q_ab_measured,
+                        const Eigen::Vector3d& p_ab_measured,
+                        const double weight_rotation,
+                        const double weight_position)
       : q_ab_measured_(q_ab_measured),
         p_ab_measured_(p_ab_measured),
         weight_rotation_(weight_rotation),
@@ -764,12 +764,12 @@ class PoseGraphErrorCostFunction {
                                      const Eigen::Vector3d& p_ab_measured,
                                      const double weight_rotation = 1.0,
                                      const double weight_position = 1.0) {
-    return (new ceres::
-                AutoDiffCostFunction<PoseGraphErrorCostFunction, 6, 4, 3, 4, 3>(
-                    new PoseGraphErrorCostFunction(q_ab_measured,
-                                                   p_ab_measured,
-                                                   weight_rotation,
-                                                   weight_position)));
+    return (
+        new ceres::AutoDiffCostFunction<PoseErrorCostFunction, 6, 4, 3, 4, 3>(
+            new PoseErrorCostFunction(q_ab_measured,
+                                      p_ab_measured,
+                                      weight_rotation,
+                                      weight_position)));
   }
 
   template <typename T>
