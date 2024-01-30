@@ -113,6 +113,15 @@ class Image {
   inline const Rigid3d& CamFromWorldPrior() const;
   inline Rigid3d& CamFromWorldPrior();
 
+  inline const double& PriorCenterXYAccuracy() const;
+  inline double& PriorCenterXYAccuracy();
+
+  inline const double& PriorCenterZAccuracy() const;
+  inline double& PriorCenterZAccuracy();
+
+  inline const double& PriorRotationAccuracy() const;
+  inline double& PriorRotationAccuracy();
+
   // Access the coordinates of image points.
   inline const struct Point2D& Point2D(point2D_t point2D_idx) const;
   inline struct Point2D& Point2D(point2D_t point2D_idx);
@@ -191,6 +200,15 @@ class Image {
   // The pose prior of the image, e.g. extracted from EXIF tags.
   Rigid3d cam_from_world_prior_;
 
+  // The accuracy of prior center xy.
+  double prior_center_xy_accuracy_ = 5.0;
+
+  // The accuracy of prior center z.
+  double prior_center_z_accuracy_ = 0.1;
+
+  // The accuracy of rotation prior.
+  double prior_rotation_accuracy_ = 0.03;
+
   // All image points, including points that are not part of a 3D point track.
   std::vector<struct Point2D> points2D_;
 
@@ -262,6 +280,24 @@ const Rigid3d& Image::CamFromWorldPrior() const {
 }
 
 Rigid3d& Image::CamFromWorldPrior() { return cam_from_world_prior_; }
+
+const double& Image::PriorCenterXYAccuracy() const {
+  return prior_center_xy_accuracy_;
+}
+
+double& Image::PriorCenterXYAccuracy() { return prior_center_xy_accuracy_; }
+
+const double& Image::PriorCenterZAccuracy() const {
+  return prior_center_z_accuracy_;
+}
+
+double& Image::PriorCenterZAccuracy() { return prior_center_z_accuracy_; }
+
+const double& Image::PriorRotationAccuracy() const {
+  return prior_rotation_accuracy_;
+}
+
+double& Image::PriorRotationAccuracy() { return prior_rotation_accuracy_; }
 
 const struct Point2D& Image::Point2D(const point2D_t point2D_idx) const {
   return points2D_.at(point2D_idx);

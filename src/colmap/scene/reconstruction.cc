@@ -1740,14 +1740,14 @@ void Reconstruction::ReadGCPsText(const std::string& path) {
 
     // Accuracy
     std::getline(line_stream, item, ' ');
-    gcp.accuracy_xy = std::stold(item);
+    gcp.xy_accuracy = std::stold(item);
 
     std::getline(line_stream, item, ' ');
-    gcp.accuracy_z = std::stold(item);
+    gcp.z_accuracy = std::stold(item);
 
     // TRACK
     while (!line_stream.eof()) {
-      TrackElement track_el;
+      GCPTrackElement track_el;
 
       std::getline(line_stream, item, ' ');
       StringTrim(&item);
@@ -1757,7 +1757,9 @@ void Reconstruction::ReadGCPsText(const std::string& path) {
       track_el.image_id = std::stoul(item);
 
       std::getline(line_stream, item, ' ');
-      track_el.point2D_idx = std::stoul(item);
+      track_el.image_xy[0] = std::stoul(item);
+      std::getline(line_stream, item, ' ');
+      track_el.image_xy[1] = std::stoul(item);
 
       gcp.track.AddElement(track_el);
     }
@@ -1895,15 +1897,16 @@ void Reconstruction::ReadGCPsBinary(const std::string& path) {
     gcp.color(1) = ReadBinaryLittleEndian<uint8_t>(&file);
     gcp.color(2) = ReadBinaryLittleEndian<uint8_t>(&file);
     gcp.error = ReadBinaryLittleEndian<double>(&file);
-    gcp.accuracy_xy = ReadBinaryLittleEndian<double>(&file);
-    gcp.accuracy_z = ReadBinaryLittleEndian<double>(&file);
+    gcp.xy_accuracy = ReadBinaryLittleEndian<double>(&file);
+    gcp.z_accuracy = ReadBinaryLittleEndian<double>(&file);
     gcp.error = ReadBinaryLittleEndian<double>(&file);
 
     const size_t track_length = ReadBinaryLittleEndian<uint64_t>(&file);
     for (size_t j = 0; j < track_length; ++j) {
       const image_t image_id = ReadBinaryLittleEndian<image_t>(&file);
-      const point2D_t point2D_idx = ReadBinaryLittleEndian<point2D_t>(&file);
-      gcp.track.AddElement(image_id, point2D_idx);
+      const double image_x = ReadBinaryLittleEndian<double>(&file);
+      const double image_y = ReadBinaryLittleEndian<double>(&file);
+      gcp.track.AddElement(image_id, Eigen::Vector2d(image_x, image_y));
     }
     gcp.track.Compress();
 
@@ -2050,7 +2053,7 @@ void Reconstruction::WriteGCPsText(const std::string& path) const {
   file.precision(17);
 
   file << "# GCP list with one line of data per point:" << std::endl;
-  file << "#   GCP_ID, X, Y, Z, R, G, B, ERROR, ACCURACY_XY, ACCURACY_Z, "
+  file << "#   GCP_ID, X, Y, Z, R, G, B, ERROR, XY_ACCURACY, Z_ACCURACY, "
           "TRACK[] as (IMAGE_ID, POINT2D_IDX)"
        << std::endl;
   file << "# Number of points: " << points3D_.size()
@@ -2065,15 +2068,16 @@ void Reconstruction::WriteGCPsText(const std::string& path) const {
     file << static_cast<int>(gcp.second.color(1)) << " ";
     file << static_cast<int>(gcp.second.color(2)) << " ";
     file << gcp.second.error << " ";
-    file << gcp.second.accuracy_xy << " ";
-    file << gcp.second.accuracy_z << " ";
+    file << gcp.second.xy_accuracy << " ";
+    file << gcp.second.z_accuracy << " ";
 
     std::ostringstream line;
     line.precision(17);
 
     for (const auto& track_el : gcp.second.track.Elements()) {
       line << track_el.image_id << " ";
-      line << track_el.point2D_idx << " ";
+      line << track_el.image_xy[0] << " ";
+      line << track_el.image_xy[1] << " ";
     }
 
     std::string line_string = line.str();
@@ -2176,13 +2180,14 @@ void Reconstruction::WriteGCPsBinary(const std::string& path) const {
     WriteBinaryLittleEndian<uint8_t>(&file, gcp.second.color(1));
     WriteBinaryLittleEndian<uint8_t>(&file, gcp.second.color(2));
     WriteBinaryLittleEndian<double>(&file, gcp.second.error);
-    WriteBinaryLittleEndian<double>(&file, gcp.second.accuracy_xy);
-    WriteBinaryLittleEndian<double>(&file, gcp.second.accuracy_z);
+    WriteBinaryLittleEndian<double>(&file, gcp.second.xy_accuracy);
+    WriteBinaryLittleEndian<double>(&file, gcp.second.z_accuracy);
 
     WriteBinaryLittleEndian<uint64_t>(&file, gcp.second.track.Length());
     for (const auto& track_el : gcp.second.track.Elements()) {
       WriteBinaryLittleEndian<image_t>(&file, track_el.image_id);
-      WriteBinaryLittleEndian<point2D_t>(&file, track_el.point2D_idx);
+      WriteBinaryLittleEndian<point2D_t>(&file, track_el.image_xy[0]);
+      WriteBinaryLittleEndian<point2D_t>(&file, track_el.image_xy[1]);
     }
   }
 }

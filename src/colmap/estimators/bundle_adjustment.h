@@ -60,11 +60,77 @@ struct BundleAdjustmentOptions {
   // Whether to refine the extrinsic parameter group.
   bool refine_extrinsics = true;
 
-  // Whether to refine the rotation parameter group.
-  bool refine_rotation = true;
+  // Whether to use pose center constriant.
+  bool use_prior_center = true;
 
-  // Whether to refine the center parameter group.
-  bool refine_center = true;
+  // Whether to use pose rotation constriant.
+  bool use_prior_rotation = false;
+
+  // Whether to use gcp constriant.
+  bool use_gcp = true;
+
+  // Whether to use object constriant.
+  bool use_obj = true;
+
+  // Whether to use fixed weight.
+  bool use_fixed_weight = false;
+
+  /////////////////////////////////////////////////////////////////////////////
+  // The weights of prior, tp and gcp
+  /////////////////////////////////////////////////////////////////////////////
+
+  // The object weight of prior center xy.
+  double prior_center_xy_weight = 0.2;
+
+  // The object weight of prior center z.
+  double prior_center_z_weight = 10.0;
+
+  // The object weight of prior rotation.
+  double prior_rotation_weight = 33.0;
+
+  // The image weight of auto tp.
+  double atp_img_weight = 2.0;
+
+  // The image weight of user tp.
+  double utp_img_weight = 3.3;
+
+  // The image weight of auto gcp.
+  double agcp_img_weight = 2.0;
+
+  // The object xy weight of auto gcp.
+  double agcp_obj_xy_weight = 3.0;
+
+  // The object z weight of auto gcp.
+  double agcp_obj_z_weight = 3.0;
+
+  // The image weight of user gcp.
+  double ugcp_img_weight = 3.3;
+
+  // The object xy weight of auto gcp.
+  double ugcp_obj_xy_weight = 10.0;
+
+  // The object z weight of auto gcp.
+  double ugcp_obj_z_weight = 10.0;
+
+  /////////////////////////////////////////////////////////////////////////////
+  // The measure accuracies of tp and gcp
+  /////////////////////////////////////////////////////////////////////////////
+
+  // The measure accuracy of auto tp in image slide.
+  double atp_img_accuracy = 0.5;
+
+  // The measure accuracy of user tp in image slide.
+  double utp_img_accuracy = 0.3;
+
+  // The measure accuracy of auto gcp in image slide.
+  double agcp_img_accuracy = 0.5;
+
+  // The measure accuracy of user gcp in image slide.
+  double ugcp_img_accuracy = 0.3;
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Other options
+  /////////////////////////////////////////////////////////////////////////////
 
   // Whether to print a final summary.
   bool print_summary = true;
@@ -107,6 +173,7 @@ class BundleAdjustmentConfig {
   size_t NumConstantCamPositions() const;
   size_t NumVariablePoints() const;
   size_t NumConstantPoints() const;
+  size_t NumGCPs() const;
 
   // Determine the number of residuals for the given reconstruction. The number
   // of residuals equals the number of observations times two.
@@ -141,16 +208,20 @@ class BundleAdjustmentConfig {
   // be variable or constant but not both at the same time.
   void AddVariablePoint(point3D_t point3D_id);
   void AddConstantPoint(point3D_t point3D_id);
+  void AddGCP(point3D_t gcp_id);
   bool HasPoint(point3D_t point3D_id) const;
   bool HasVariablePoint(point3D_t point3D_id) const;
   bool HasConstantPoint(point3D_t point3D_id) const;
+  bool HasGCP(point3D_t gcp_id) const;
   void RemoveVariablePoint(point3D_t point3D_id);
   void RemoveConstantPoint(point3D_t point3D_id);
+  void RemoveGCP(point3D_t gcp_id);
 
   // Access configuration data.
   const std::unordered_set<image_t>& Images() const;
   const std::unordered_set<point3D_t>& VariablePoints() const;
   const std::unordered_set<point3D_t>& ConstantPoints() const;
+  const std::unordered_set<point3D_t>& GCPs() const;
   const std::vector<int>& ConstantCamPositions(image_t image_id) const;
 
  private:
@@ -158,6 +229,7 @@ class BundleAdjustmentConfig {
   std::unordered_set<image_t> image_ids_;
   std::unordered_set<point3D_t> variable_point3D_ids_;
   std::unordered_set<point3D_t> constant_point3D_ids_;
+  std::unordered_set<point3D_t> gcp_ids_;
   std::unordered_set<image_t> constant_cam_poses_;
   std::unordered_map<image_t, std::vector<int>> constant_cam_positions_;
 };
@@ -187,6 +259,10 @@ class BundleAdjuster {
                          Reconstruction* reconstruction,
                          ceres::LossFunction* loss_function);
 
+  void AddGCPToProblem(point3D_t gcp_id,
+                       Reconstruction* reconstruction,
+                       ceres::LossFunction* loss_function);
+
  protected:
   void ParameterizeCameras(Reconstruction* reconstruction);
   void ParameterizePoints(Reconstruction* reconstruction);
@@ -197,6 +273,10 @@ class BundleAdjuster {
   ceres::Solver::Summary summary_;
   std::unordered_set<camera_t> camera_ids_;
   std::unordered_map<point3D_t, size_t> point3D_num_observations_;
+
+  std::unordered_map<point3D_t, Eigen::Vector3d> predicted_gcps_;
+
+  std::unordered_map<image_t, Eigen::Vector3d> predicted_centers_;
 };
 
 class RigBundleAdjuster : public BundleAdjuster {

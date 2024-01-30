@@ -39,6 +39,7 @@ COLMAP_ADD_LIBRARY(
         database.h database.cc
         database_cache.h database_cache.cc
         gcp.h 
+        gcp_track.h gcp_track.cc
         image.h image.cc
         point2d.h
         point3d.h

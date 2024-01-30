@@ -27,40 +27,29 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
 #include "colmap/scene/gcp_track.h"
-#include "colmap/util/eigen_alignment.h"
-#include "colmap/util/logging.h"
-#include "colmap/util/types.h"
-
-#include <vector>
-
-#include <Eigen/Core>
 
 namespace colmap {
 
-// 3D point class that holds information about triangulated 2D points.
-struct GCP {
-  // The 3D position of the point.
-  Eigen::Vector3d xyz = Eigen::Vector3d::Zero();
+GCPTrack::GCPTrack() {}
 
-  // The color of the point in the range [0, 255].
-  Eigen::Vector3ub color = Eigen::Vector3ub::Zero();
+GCPTrackElement::GCPTrackElement()
+    : image_id(kInvalidImageId), image_xy(kInvalidPoint2DIdx) {}
 
-  // The mean reprojection error in pixels.
-  double error = -1.;
+GCPTrackElement::GCPTrackElement(const image_t image_id,
+                                 const Eigen::Vector2d& image_xy)
+    : image_id(image_id), image_xy(image_xy) {}
 
-  // The accuracy of xy.
-  double xy_accuracy = 0.1;
-
-  // The accuracy of z.
-  double z_accuracy = 0.1;
-
-  // The track of the point as a list of image observations.
-  GCPTrack track;
-
-  inline bool HasError() const { return error != -1.; }
-};
+void GCPTrack::DeleteElement(const image_t image_id,
+                             const Eigen::Vector2d& image_xy) {
+  elements_.erase(
+      std::remove_if(elements_.begin(),
+                     elements_.end(),
+                     [image_id, &image_xy](const GCPTrackElement& element) {
+                       return element.image_id == image_id &&
+                              element.image_xy == image_xy;
+                     }),
+      elements_.end());
+}
 
 }  // namespace colmap

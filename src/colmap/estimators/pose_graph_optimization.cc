@@ -287,10 +287,6 @@ void PoseGraphOptimization::SetUp(Reconstruction* reconstruction,
 
     auto& cam_from_world = image.CamFromWorld();
     cam_from_world.rotation.normalize();
-
-    if (options_.refine_center) {
-      cam_from_world.UpdateCenter();
-    }
   }
 
   // Warning: AddPointsToProblem assumes that AddImageToProblem is called first.
@@ -314,10 +310,6 @@ void PoseGraphOptimization::TearDown(Reconstruction* reconstruction) {
 
     auto& cam_from_world = image.CamFromWorld();
     cam_from_world.rotation.normalize();
-
-    if (options_.refine_center) {
-      cam_from_world.UpdateTranslation();
-    }
   }
 }
 
@@ -339,95 +331,47 @@ void PoseGraphOptimization::AddPairToProblem(
     return;
   }
 
-  if (options_.refine_center) {
-    double* cam_from_world_rotation1 =
-        image1.CamFromWorld().rotation.coeffs().data();
-    double* cam_from_world_center1 = image1.CamFromWorld().center.data();
+  double* cam_from_world_rotation1 =
+      image1.CamFromWorld().rotation.coeffs().data();
+  double* cam_from_world_translation1 =
+      image1.CamFromWorld().translation.data();
 
-    double* cam_from_world_rotation2 =
-        image2.CamFromWorld().rotation.coeffs().data();
-    double* cam_from_world_center2 = image2.CamFromWorld().center.data();
+  double* cam_from_world_rotation2 =
+      image2.CamFromWorld().rotation.coeffs().data();
+  double* cam_from_world_translation2 =
+      image2.CamFromWorld().translation.data();
 
-    Eigen::Quaterniond q_ab_measured;
-    Eigen::Vector3d p_ab_measured;
-    double weight_rotation = 1.0;
-    double weight_position = 1.0;
+  Eigen::Quaterniond q_ab_measured;
+  Eigen::Vector3d p_ab_measured;
+  double weight_rotation = 1.0;
+  double weight_position = 1.0;
 
-    // Add residuals to pose graph optimization problem.
-    ceres::CostFunction* cost_function = center::PoseErrorCostFunction::Create(
-        q_ab_measured, p_ab_measured, weight_rotation, weight_position);
+  // Add residuals to pose graph optimization problem.
+  ceres::CostFunction* cost_function = PoseErrorCostFunction::Create(
+      q_ab_measured, p_ab_measured, weight_rotation, weight_position);
 
-    problem_->AddResidualBlock(cost_function,
-                               loss_function,
-                               cam_from_world_rotation1,
-                               cam_from_world_center1,
-                               cam_from_world_rotation2,
-                               cam_from_world_center2);
+  problem_->AddResidualBlock(cost_function,
+                             loss_function,
+                             cam_from_world_rotation1,
+                             cam_from_world_translation1,
+                             cam_from_world_rotation2,
+                             cam_from_world_translation2);
 
-    // Set pose parameterization.
-    if (!constant_cam_pose1) {
-      SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
-      const std::vector<int>& constant_position_idxs =
-          config_.ConstantCamPositions(image_id1);
-      SetSubsetManifold(
-          3, constant_position_idxs, problem_.get(), cam_from_world_center1);
-    }
+  // Set pose parameterization.
+  if (!constant_cam_pose1) {
+    SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
+    const auto& constant_position_idxs =
+        config_.ConstantCamPositions(image_id1);
+    SetSubsetManifold(
+        3, constant_position_idxs, problem_.get(), cam_from_world_translation1);
+  }
 
-    if (!constant_cam_pose2) {
-      SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
-      const std::vector<int>& constant_position_idxs =
-          config_.ConstantCamPositions(image_id2);
-      SetSubsetManifold(
-          3, constant_position_idxs, problem_.get(), cam_from_world_center2);
-    }
-  } else {
-    double* cam_from_world_rotation1 =
-        image1.CamFromWorld().rotation.coeffs().data();
-    double* cam_from_world_translation1 =
-        image1.CamFromWorld().translation.data();
-
-    double* cam_from_world_rotation2 =
-        image2.CamFromWorld().rotation.coeffs().data();
-    double* cam_from_world_translation2 =
-        image2.CamFromWorld().translation.data();
-
-    Eigen::Quaterniond q_ab_measured;
-    Eigen::Vector3d p_ab_measured;
-    double weight_rotation = 1.0;
-    double weight_position = 1.0;
-
-    // Add residuals to pose graph optimization problem.
-    ceres::CostFunction* cost_function =
-        translantion::PoseErrorCostFunction::Create(
-            q_ab_measured, p_ab_measured, weight_rotation, weight_position);
-
-    problem_->AddResidualBlock(cost_function,
-                               loss_function,
-                               cam_from_world_rotation1,
-                               cam_from_world_translation1,
-                               cam_from_world_rotation2,
-                               cam_from_world_translation2);
-
-    // Set pose parameterization.
-    if (!constant_cam_pose1) {
-      SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
-      const auto& constant_position_idxs =
-          config_.ConstantCamPositions(image_id1);
-      SetSubsetManifold(3,
-                        constant_position_idxs,
-                        problem_.get(),
-                        cam_from_world_translation1);
-    }
-
-    if (!constant_cam_pose2) {
-      SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
-      const auto& constant_position_idxs =
-          config_.ConstantCamPositions(image_id2);
-      SetSubsetManifold(3,
-                        constant_position_idxs,
-                        problem_.get(),
-                        cam_from_world_translation2);
-    }
+  if (!constant_cam_pose2) {
+    SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
+    const auto& constant_position_idxs =
+        config_.ConstantCamPositions(image_id2);
+    SetSubsetManifold(
+        3, constant_position_idxs, problem_.get(), cam_from_world_translation2);
   }
 }
 
@@ -443,57 +387,27 @@ void PoseGraphOptimization::AddPriorToProblem(
     return;
   }
 
-  if (options_.refine_center) {
-    double* cam_from_world_rotation =
-        image.CamFromWorld().rotation.coeffs().data();
-    double* cam_from_world_center = image.CamFromWorld().center.data();
+  double* cam_from_world_rotation =
+      image.CamFromWorld().rotation.coeffs().data();
+  double* cam_from_world_translation = image.CamFromWorld().translation.data();
 
-    Eigen::Vector3d p_measured;
-    double weight = 1.0;
+  Eigen::Vector3d p_measured;
+  double weight = 1.0;
 
-    // Add residuals to pose graph optimization problem.
-    ceres::CostFunction* cost_function =
-        center::PoseCenterErrorCostFunction::Create(p_measured, weight);
+  // Add residuals to pose graph optimization problem.
+  ceres::CostFunction* cost_function =
+      PoseCenterErrorCostFunction::Create(p_measured, weight, weight, weight);
 
-    problem_->AddResidualBlock(cost_function,
-                               loss_function,
-                               cam_from_world_rotation,
-                               cam_from_world_center);
+  problem_->AddResidualBlock(cost_function,
+                             loss_function,
+                             cam_from_world_rotation,
+                             cam_from_world_translation);
 
-    // Set pose parameterization.
-    if (!constant_cam_pose) {
-      const auto& constant_position_idxs =
-          config_.ConstantCamPositions(image_id);
-      SetSubsetManifold(
-          3, constant_position_idxs, problem_.get(), cam_from_world_center);
-    }
-  } else {
-    double* cam_from_world_rotation =
-        image.CamFromWorld().rotation.coeffs().data();
-    double* cam_from_world_translation =
-        image.CamFromWorld().translation.data();
-
-    Eigen::Vector3d p_measured;
-    double weight = 1.0;
-
-    // Add residuals to pose graph optimization problem.
-    ceres::CostFunction* cost_function =
-        translantion::PoseCenterErrorCostFunction::Create(p_measured, weight);
-
-    problem_->AddResidualBlock(cost_function,
-                               loss_function,
-                               cam_from_world_rotation,
-                               cam_from_world_translation);
-
-    // Set pose parameterization.
-    if (!constant_cam_pose) {
-      const auto& constant_position_idxs =
-          config_.ConstantCamPositions(image_id);
-      SetSubsetManifold(3,
-                        constant_position_idxs,
-                        problem_.get(),
-                        cam_from_world_translation);
-    }
+  // Set pose parameterization.
+  if (!constant_cam_pose) {
+    const auto& constant_position_idxs = config_.ConstantCamPositions(image_id);
+    SetSubsetManifold(
+        3, constant_position_idxs, problem_.get(), cam_from_world_translation);
   }
 }
 
