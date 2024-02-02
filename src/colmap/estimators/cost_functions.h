@@ -430,14 +430,14 @@ class PoseCenterErrorCostFunction {
         weight_y_(weight_y),
         weight_z_(weight_z) {}
 
-  static ceres::CostFunction* Create(const Eigen::Vector3d& p_measured,
+  static ceres::CostFunction* Create(const Eigen::Vector3d& c_measured,
                                      const double weight_x,
                                      const double weight_y,
                                      const double weight_z) {
     return (
         new ceres::AutoDiffCostFunction<PoseCenterErrorCostFunction, 3, 4, 3>(
             new PoseCenterErrorCostFunction(
-                p_measured, weight_x, weight_y, weight_z)));
+                c_measured, weight_x, weight_y, weight_z)));
   }
 
   template <typename T>
