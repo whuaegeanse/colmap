@@ -390,6 +390,8 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
     Point3D& point3D = reconstruction->Point3D(point2D.point3D_id);
     assert(point3D.track.Length() > 1);
 
+    ceres::CostFunction* cost_function = nullptr;
+
     if (constant_cam_pose) {
       switch (camera.model_id) {
 #define CAMERA_MODEL_CASE(CameraModel)                                        \
@@ -404,11 +406,7 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
       }
 
       problem_->AddResidualBlock(
-          CameraCostFunction<ReprojErrorConstantPoseCostFunction>(
-              camera.model_id, image.CamFromWorld(), point2D.xy),
-          loss_function,
-          point3D.xyz.data(),
-          camera_params);
+          cost_function, loss_function, point3D.xyz.data(), camera_params);
     } else {
       switch (camera.model_id) {
 #define CAMERA_MODEL_CASE(CameraModel)                            \
@@ -539,185 +537,6 @@ void BundleAdjuster::AddPointToProblem(const point3D_t point3D_id,
     }
     problem_->AddResidualBlock(
         cost_function, loss_function, point3D.xyz.data(), camera.params.data());
-  }
-}
-
-void BundleAdjuster::AddGCPToProblem(point3D_t gcp_id,
-                                     Reconstruction* reconstruction,
-                                     ceres::LossFunction* loss_function) {
-  GCP& gcp = reconstruction->GCP(gcp_id);
-
-  double ugcp_img_weight = 1.0;
-  if (options_.use_fixed_weight) {
-    ugcp_img_weight = options_.ugcp_img_weight;
-  } else {
-    ugcp_img_weight = 1.0 / options_.ugcp_img_accuracy;
-  }
-
-  if (options_.use_obj) {
-    auto& predicted_xyz = predicted_gcps_[gcp_id];
-    predicted_xyz = gcp.xyz;
-
-    size_t num_observations = 0;
-
-    for (const auto& track_el : gcp.track.Elements()) {
-      // Skip observations that were already added in `FillImages`.
-      if (config_.HasImage(track_el.image_id)) {
-        continue;
-      }
-
-      Image& image = reconstruction->Image(track_el.image_id);
-      Camera& camera = reconstruction->Camera(image.CameraId());
-
-      double* cam_from_world_rotation =
-          image.CamFromWorld().rotation.coeffs().data();
-      double* cam_from_world_translation =
-          image.CamFromWorld().translation.data();
-      double* camera_params = camera.params.data();
-
-      const bool constant_cam_pose =
-          !options_.refine_extrinsics ||
-          config_.HasConstantCamPose(track_el.image_id);
-
-      // We do not want to refine the camera of images that are not
-      // part of `constant_image_ids_`, `constant_image_ids_`,
-      // `constant_x_image_ids_`.
-      if (camera_ids_.count(image.CameraId()) == 0) {
-        camera_ids_.insert(image.CameraId());
-        config_.SetConstantCamIntrinsics(image.CameraId());
-      }
-
-      ++num_observations;
-
-      if (constant_cam_pose) {
-        ceres::CostFunction* cost_function = nullptr;
-        switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-        image.CamFromWorld(), track_el.image_xy, ugcp_img_weight);            \
-    break;
-
-          CAMERA_MODEL_SWITCH_CASES
-
-#undef CAMERA_MODEL_CASE
-        }
-
-        problem_->AddResidualBlock(
-            cost_function, nullptr, predicted_xyz.data(), camera_params);
-      } else {
-        ceres::CostFunction* cost_function = nullptr;
-        switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                            \
-  case CameraModel::model_id:                                     \
-    cost_function = ReprojErrorCostFunction<CameraModel>::Create( \
-        track_el.image_xy, ugcp_img_weight);                      \
-    break;
-
-          CAMERA_MODEL_SWITCH_CASES
-
-#undef CAMERA_MODEL_CASE
-        }
-
-        problem_->AddResidualBlock(cost_function,
-                                   nullptr,
-                                   cam_from_world_rotation,
-                                   cam_from_world_translation,
-                                   predicted_xyz.data(),
-                                   camera_params);
-      }
-    }
-
-    if (num_observations >= 2) {
-      double ugcp_obj_xy_weight = 1.0;
-      double ugcp_obj_z_weight = 1.0;
-      if (options_.use_fixed_weight) {
-        ugcp_obj_xy_weight = options_.ugcp_obj_xy_weight;
-        ugcp_obj_z_weight = options_.ugcp_obj_z_weight;
-      } else {
-        ugcp_obj_xy_weight = 1.0 / gcp.xy_accuracy;
-        ugcp_obj_z_weight = 1.0 / gcp.z_accuracy;
-      }
-
-      auto cost_function = Point3DErrorCostFunction::Create(
-          gcp.xyz, ugcp_obj_xy_weight, ugcp_obj_z_weight);
-
-      problem_->AddResidualBlock(cost_function, nullptr, predicted_xyz.data());
-    }
-  } else {
-    for (const auto& track_el : gcp.track.Elements()) {
-      // Skip observations that were already added in `FillImages`.
-      if (config_.HasImage(track_el.image_id)) {
-        continue;
-      }
-
-      Image& image = reconstruction->Image(track_el.image_id);
-      Camera& camera = reconstruction->Camera(image.CameraId());
-
-      double* cam_from_world_rotation =
-          image.CamFromWorld().rotation.coeffs().data();
-      double* cam_from_world_translation =
-          image.CamFromWorld().translation.data();
-      double* camera_params = camera.params.data();
-
-      const bool constant_cam_pose =
-          !options_.refine_extrinsics ||
-          config_.HasConstantCamPose(track_el.image_id);
-
-      // We do not want to refine the camera of images that are not
-      // part of `constant_image_ids_`, `constant_image_ids_`,
-      // `constant_x_image_ids_`.
-      if (camera_ids_.count(image.CameraId()) == 0) {
-        camera_ids_.insert(image.CameraId());
-        config_.SetConstantCamIntrinsics(image.CameraId());
-      }
-
-      if (constant_cam_pose &&
-          config_.HasConstantCamIntrinsics(image.CameraId())) {
-        continue;
-      }
-
-      if (constant_cam_pose) {
-        ceres::CostFunction* cost_function = nullptr;
-        switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                   \
-  case CameraModel::model_id:                                            \
-    cost_function =                                                      \
-        ReprojErrorConstantPosePoint3DCostFunction<CameraModel>::Create( \
-            image.CamFromWorld(),                                        \
-            track_el.image_xy,                                           \
-            gcp.xyz,                                                     \
-            ugcp_img_weight);                                            \
-    break;
-
-          CAMERA_MODEL_SWITCH_CASES
-
-#undef CAMERA_MODEL_CASE
-        }
-
-        problem_->AddResidualBlock(cost_function, nullptr, camera_params);
-      } else {
-        ceres::CostFunction* cost_function = nullptr;
-        switch (camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                               \
-  case CameraModel::model_id:                                        \
-    cost_function =                                                  \
-        ReprojErrorConstantPoint3DCostFunction<CameraModel>::Create( \
-            track_el.image_xy, gcp.xyz, ugcp_img_weight);            \
-    break;
-
-          CAMERA_MODEL_SWITCH_CASES
-
-#undef CAMERA_MODEL_CASE
-        }
-
-        problem_->AddResidualBlock(cost_function,
-                                   nullptr,
-                                   cam_from_world_rotation,
-                                   cam_from_world_translation,
-                                   camera_params);
-      }
-    }
   }
 }
 

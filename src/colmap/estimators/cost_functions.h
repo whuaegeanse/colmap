@@ -676,13 +676,13 @@ struct MetricRelativePoseErrorCostFunction {
   const EigenMatrix6d sqrt_information_j_;
 };
 
-template <template <typename> class CostFunction, typename... Args>
+template <template <typename> class CameraRECF, typename... Args>
 ceres::CostFunction* CameraCostFunction(const CameraModelId camera_model_id,
                                         Args&&... args) {
   switch (camera_model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                     \
-  case CameraModel::model_id:                                              \
-    return CostFunction<CameraModel>::Create(std::forward<Args>(args)...); \
+#define CAMERA_MODEL_CASE(CameraModel)                                   \
+  case CameraModel::model_id:                                            \
+    return CameraRECF<CameraModel>::Create(std::forward<Args>(args)...); \
     break;
 
     CAMERA_MODEL_SWITCH_CASES

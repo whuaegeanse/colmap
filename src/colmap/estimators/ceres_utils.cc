@@ -29,6 +29,8 @@
 
 #include "colmap/estimators/ceres_utils.h"
 
+#include "colmap/util/logging.h"
+
 #include <iomanip>
 
 namespace colmap {
@@ -47,6 +49,7 @@ ceres::LossFunction* CreateLossFunction(LossFunctionType loss_function_type,
       loss_function = new ceres::CauchyLoss(loss_function_scale);
       break;
   }
+   THROW_CHECK_NOTNULL(loss_function);
   return loss_function;
 }
 
