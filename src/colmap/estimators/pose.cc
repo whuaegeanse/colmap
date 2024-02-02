@@ -210,8 +210,8 @@ bool RefineAbsolutePose(const AbsolutePoseRefinementOptions& options,
                         Rigid3d* cam_from_world,
                         Camera* camera,
                         Eigen::Matrix6d* cam_from_world_cov) {
-  CHECK_EQ(inlier_mask.size(), points2D.size());
-  CHECK_EQ(points2D.size(), points3D.size());
+  THROW_CHECK_EQ(inlier_mask.size(), points2D.size());
+  THROW_CHECK_EQ(points2D.size(), points3D.size());
   options.Check();
 
   const auto loss_function =
@@ -230,27 +230,13 @@ bool RefineAbsolutePose(const AbsolutePoseRefinementOptions& options,
     if (!inlier_mask[i]) {
       continue;
     }
-
-    ceres::CostFunction* cost_function = nullptr;
-
-    switch (camera->model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                               \
-  case CameraModel::model_id:                                        \
-    cost_function =                                                  \
-        ReprojErrorConstantPoint3DCostFunction<CameraModel>::Create( \
-            points2D[i], points3D[i]);                               \
-    break;
-
-      CAMERA_MODEL_SWITCH_CASES
-
-#undef CAMERA_MODEL_CASE
-    }
-
-    problem.AddResidualBlock(cost_function,
-                             loss_function.get(),
-                             rig_from_world_rotation,
-                             rig_from_world_translation,
-                             camera_params);
+    problem.AddResidualBlock(
+        CameraCostFunction<ReprojErrorConstantPoint3DCostFunction>(
+            camera->model_id, points2D[i], points3D[i]),
+        loss_function.get(),
+        rig_from_world_rotation,
+        rig_from_world_translation,
+        camera_params);
   }
 
   if (problem.NumResiduals() > 0) {
@@ -335,7 +321,7 @@ bool RefineRelativePose(const ceres::Solver::Options& options,
                         const std::vector<Eigen::Vector2d>& points1,
                         const std::vector<Eigen::Vector2d>& points2,
                         Rigid3d* cam2_from_cam1) {
-  CHECK_EQ(points1.size(), points2.size());
+  THROW_CHECK_EQ(points1.size(), points2.size());
 
   // CostFunction assumes unit quaternions.
   cam2_from_cam1->rotation.normalize();
@@ -371,8 +357,8 @@ bool RefineEssentialMatrix(const ceres::Solver::Options& options,
                            const std::vector<Eigen::Vector2d>& points2,
                            const std::vector<char>& inlier_mask,
                            Eigen::Matrix3d* E) {
-  CHECK_EQ(points1.size(), points2.size());
-  CHECK_EQ(points1.size(), inlier_mask.size());
+  THROW_CHECK_EQ(points1.size(), points2.size());
+  THROW_CHECK_EQ(points1.size(), inlier_mask.size());
 
   // Extract inlier points for decomposing the essential matrix into
   // rotation and translation components.
