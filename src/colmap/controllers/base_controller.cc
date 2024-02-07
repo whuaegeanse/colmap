@@ -27,45 +27,41 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+#include "colmap/controllers/base_controller.h"
 
 #include "colmap/util/logging.h"
 
-#include <cstdio>
-#include <cstdlib>
-#include <string>
-
-#include <sqlite3.h>
-
 namespace colmap {
 
-inline int SQLite3CallHelper(int result_code,
-                             const std::string& filename,
-                             int line) {
-  switch (result_code) {
-    case SQLITE_OK:
-    case SQLITE_ROW:
-    case SQLITE_DONE:
-      return result_code;
-    default:
-      LogMessageFatalThrow<std::runtime_error>(filename.c_str(), line).stream()
-          << "SQLite error: " << sqlite3_errstr(result_code);
-      return result_code;
+BaseController::BaseController() {}
+
+void BaseController::AddCallback(const int id,
+                                 const std::function<void()>& func) {
+  CHECK(func);
+  CHECK_GT(callbacks_.count(id), 0) << "Callback not registered";
+  callbacks_.at(id).push_back(func);
+}
+
+void BaseController::RegisterCallback(const int id) {
+  callbacks_.emplace(id, std::list<std::function<void()>>());
+}
+
+void BaseController::Callback(const int id) const {
+  CHECK_GT(callbacks_.count(id), 0) << "Callback not registered";
+  for (const auto& callback : callbacks_.at(id)) {
+    callback();
   }
 }
 
-#define SQLITE3_CALL(func) SQLite3CallHelper(func, __FILE__, __LINE__)
+void BaseController::SetCheckIfStoppedFunc(const std::function<bool()>& func) {
+  check_if_stopped_fn_ = func;
+}
 
-#define SQLITE3_EXEC(database, sql, callback)                             \
-  {                                                                       \
-    char* err_msg = nullptr;                                              \
-    const int result_code =                                               \
-        sqlite3_exec(database, sql, callback, nullptr, &err_msg);         \
-    if (result_code != SQLITE_OK) {                                       \
-      LOG(ERROR) << "SQLite error [" << __FILE__ << ", line " << __LINE__ \
-                 << "]: " << err_msg;                                     \
-      sqlite3_free(err_msg);                                              \
-    }                                                                     \
-  }
+bool BaseController::CheckIfStopped() {
+  if (check_if_stopped_fn_)
+    return check_if_stopped_fn_();
+  else
+    return false;
+}
 
 }  // namespace colmap
