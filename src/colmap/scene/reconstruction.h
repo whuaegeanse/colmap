@@ -138,6 +138,9 @@ class Reconstruction {
   // Add new 3D point with known ID.
   void AddPoint3D(point3D_t point3D_id, struct Point3D point3D);
 
+  // Add new gcp with known ID.
+  void AddGCP(const point3D_t gcp_id, struct GCP gcp);
+
   // Add new 3D object, and return its unique ID.
   point3D_t AddPoint3D(
       const Eigen::Vector3d& xyz,

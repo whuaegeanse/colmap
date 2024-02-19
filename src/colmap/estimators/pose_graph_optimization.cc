@@ -153,11 +153,10 @@ bool PoseGraphOptimizationConfig::HasConstantCamPositions(
 void PoseGraphOptimizationConfig::AddImagePair(image_pair_t pair_id) {
   image_pairs_.emplace(pair_id);
 
-  image_t image_id1, image_id2;
-  Database::PairIdToImagePair(pair_id, &image_id1, &image_id2);
+  auto image_pair = Database::PairIdToImagePair(pair_id);
 
-  image_ids_.emplace(image_id1);
-  image_ids_.emplace(image_id2);
+  image_ids_.emplace(image_pair.first);
+  image_ids_.emplace(image_pair.second);
 }
 
 bool PoseGraphOptimizationConfig::HasImagePair(image_pair_t pair_id) {
@@ -265,8 +264,7 @@ bool PoseGraphOptimization::Solve(Reconstruction* reconstruction) {
   ceres::Solve(solver_options, problem_.get(), &summary_);
 
   if (options_.print_summary) {
-    PrintHeading2("Pose graph optimization report");
-    PrintSolverSummary(summary_);
+    PrintSolverSummary(summary_, "Pose graph optimization report");
   }
 
   TearDown(reconstruction);
@@ -317,15 +315,13 @@ void PoseGraphOptimization::AddPairToProblem(
     image_pair_t pair_id,
     Reconstruction* reconstruction,
     ceres::LossFunction* loss_function) {
-  image_t image_id1, image_id2;
+  auto image_pair = Database::PairIdToImagePair(pair_id);
 
-  Database::PairIdToImagePair(pair_id, &image_id1, &image_id2);
+  Image& image1 = reconstruction->Image(image_pair.first);
+  Image& image2 = reconstruction->Image(image_pair.second);
 
-  Image& image1 = reconstruction->Image(image_id1);
-  Image& image2 = reconstruction->Image(image_id2);
-
-  const bool constant_cam_pose1 = config_.HasConstantCamPose(image_id1);
-  const bool constant_cam_pose2 = config_.HasConstantCamPose(image_id2);
+  const bool constant_cam_pose1 = config_.HasConstantCamPose(image_pair.first);
+  const bool constant_cam_pose2 = config_.HasConstantCamPose(image_pair.second);
 
   if (constant_cam_pose1 && constant_cam_pose2) {
     return;
@@ -361,7 +357,7 @@ void PoseGraphOptimization::AddPairToProblem(
   if (!constant_cam_pose1) {
     SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
     const auto& constant_position_idxs =
-        config_.ConstantCamPositions(image_id1);
+        config_.ConstantCamPositions(image_pair.first);
     SetSubsetManifold(
         3, constant_position_idxs, problem_.get(), cam_from_world_translation1);
   }
@@ -369,7 +365,7 @@ void PoseGraphOptimization::AddPairToProblem(
   if (!constant_cam_pose2) {
     SetQuaternionManifold(problem_.get(), cam_from_world_rotation1);
     const auto& constant_position_idxs =
-        config_.ConstantCamPositions(image_id2);
+        config_.ConstantCamPositions(image_pair.second);
     SetSubsetManifold(
         3, constant_position_idxs, problem_.get(), cam_from_world_translation2);
   }

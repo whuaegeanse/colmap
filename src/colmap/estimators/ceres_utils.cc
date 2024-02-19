@@ -49,13 +49,14 @@ ceres::LossFunction* CreateLossFunction(LossFunctionType loss_function_type,
       loss_function = new ceres::CauchyLoss(loss_function_scale);
       break;
   }
-   THROW_CHECK_NOTNULL(loss_function);
+  THROW_CHECK_NOTNULL(loss_function);
   return loss_function;
 }
 
-void PrintSolverSummary(const ceres::Solver::Summary& summary) {
+void PrintSolverSummary(const ceres::Solver::Summary& summary,
+                        const std::string& header) {
   std::ostringstream log;
-  log << "\n";
+  log << "\n" << header << ":\n";
   log << std::right << std::setw(16) << "Residuals : ";
   log << std::left << summary.num_residuals_reduced << "\n";
 

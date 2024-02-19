@@ -41,6 +41,7 @@ enum class LossFunctionType { TRIVIAL, SOFT_L1, CAUCHY };
 ceres::LossFunction* CreateLossFunction(LossFunctionType loss_function_type,
                                         double loss_function_scale);
 
-void PrintSolverSummary(const ceres::Solver::Summary& summary);
+void PrintSolverSummary(const ceres::Solver::Summary& summary,
+                        const std::string& header);
 
 }  // namespace colmap

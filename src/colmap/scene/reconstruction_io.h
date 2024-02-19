@@ -41,12 +41,16 @@ void ReadImagesText(Reconstruction& reconstruction, const std::string& path);
 
 void ReadPoints3DText(Reconstruction& reconstruction, const std::string& path);
 
+void ReadGCPsText(Reconstruction& reconstruction, const std::string& path);
+
 void ReadCamerasBinary(Reconstruction& reconstruction, const std::string& path);
 
 void ReadImagesBinary(Reconstruction& reconstruction, const std::string& path);
 
 void ReadPoints3DBinary(Reconstruction& reconstruction,
                         const std::string& path);
+
+void ReadGCPsBinary(Reconstruction& reconstruction, const std::string& path);
 
 void WriteCamerasText(const Reconstruction& reconstruction,
                       const std::string& path);
@@ -57,6 +61,9 @@ void WriteImagesText(const Reconstruction& reconstruction,
 void WritePoints3DText(const Reconstruction& reconstruction,
                        const std::string& path);
 
+void WriteGCPsText(const Reconstruction& reconstruction,
+                   const std::string& path);
+
 void WriteCamerasBinary(const Reconstruction& reconstruction,
                         const std::string& path);
 
@@ -65,6 +72,9 @@ void WriteImagesBinary(const Reconstruction& reconstruction,
 
 void WritePoints3DBinary(const Reconstruction& reconstruction,
                          const std::string& path);
+
+void WriteGCPsBinary(const Reconstruction& reconstruction,
+                     const std::string& path);
 
 // Exports in NVM format http://ccwu.me/vsfm/doc.html#nvm. Only supports
 // SIMPLE_RADIAL camera model when exporting distortion parameters. When

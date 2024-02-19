@@ -34,6 +34,7 @@
 
 #include <array>
 #include <cfloat>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
