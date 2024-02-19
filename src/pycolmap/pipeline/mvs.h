@@ -36,8 +36,7 @@ void PatchMatchStereo(const std::string& workspace_path,
   py::gil_scoped_release release;
   mvs::PatchMatchController controller(
       options, workspace_path, workspace_format, pmvs_option_name, config_path);
-  controller.Start();
-  PyWait(&controller);
+  controller.Run();
 }
 #endif  // COLMAP_CUDA_ENABLED
 
@@ -61,8 +60,7 @@ Reconstruction StereoFusion(const std::string& output_path,
   py::gil_scoped_release release;
   mvs::StereoFusion fuser(
       options, workspace_path, workspace_format, pmvs_option_name, input_type);
-  fuser.Start();
-  PyWait(&fuser);
+  fuser.Run();
 
   Reconstruction reconstruction;
   // read data from sparse reconstruction
@@ -76,8 +74,6 @@ Reconstruction StereoFusion(const std::string& output_path,
   if (ExistsDir(output_path)) {
     reconstruction.WriteBinary(output_path);
   } else {
-    THROW_CHECK_HAS_FILE_EXTENSION(output_path, ".ply");
-    THROW_CHECK_PATH_OPEN(output_path);
     WriteBinaryPlyPoints(output_path, fuser.GetFusedPoints());
     mvs::WritePointsVisibility(output_path + ".vis",
                                fuser.GetFusedPointsVisibility());

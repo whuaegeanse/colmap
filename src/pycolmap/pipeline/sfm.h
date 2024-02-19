@@ -59,7 +59,6 @@ std::map<size_t, std::shared_ptr<Reconstruction>> IncrementalMapping(
   py::gil_scoped_release release;
   auto reconstruction_manager = std::make_shared<ReconstructionManager>();
   if (input_path != "") {
-    THROW_CHECK_DIR_EXISTS(input_path);
     reconstruction_manager->Read(input_path);
   }
   auto options_ = std::make_shared<IncrementalMapperOptions>(options);
@@ -82,8 +81,7 @@ std::map<size_t, std::shared_ptr<Reconstruction>> IncrementalMapping(
         initial_image_pair_callback);
   }
 
-  mapper.Start();
-  mapper.Wait();
+  mapper.Run();
 
   reconstruction_manager->Write(output_path);
   std::map<size_t, std::shared_ptr<Reconstruction>> reconstructions;
@@ -99,8 +97,7 @@ void BundleAdjustment(const std::shared_ptr<Reconstruction>& reconstruction,
   OptionManager option_manager;
   *option_manager.bundle_adjustment = options;
   BundleAdjustmentController controller(option_manager, reconstruction);
-  controller.Start();
-  PyWait(&controller);
+  controller.Run();
 }
 
 void BindSfM(py::module& m) {

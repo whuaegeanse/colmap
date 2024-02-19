@@ -24,15 +24,10 @@ py::object PyEstimateAndRefineAbsolutePose(
     const AbsolutePoseEstimationOptions& estimation_options,
     const AbsolutePoseRefinementOptions& refinement_options,
     const bool return_covariance) {
-  THROW_CHECK_EQ(points2D.size(), points3D.size());
-  py::object failure = py::none();
   py::gil_scoped_release release;
-
-  // Absolute pose estimation.
   Rigid3d cam_from_world;
   size_t num_inliers;
   std::vector<char> inlier_mask;
-
   if (!EstimateAbsolutePose(estimation_options,
                             points2D,
                             points3D,
@@ -40,10 +35,10 @@ py::object PyEstimateAndRefineAbsolutePose(
                             &camera,
                             &num_inliers,
                             &inlier_mask)) {
-    return failure;
+    py::gil_scoped_acquire acquire;
+    return py::none();
   }
 
-  // Absolute pose refinement.
   Eigen::Matrix<double, 6, 6> covariance;
   if (!RefineAbsolutePose(refinement_options,
                           inlier_mask,
@@ -52,7 +47,8 @@ py::object PyEstimateAndRefineAbsolutePose(
                           &cam_from_world,
                           &camera,
                           return_covariance ? &covariance : nullptr)) {
-    return failure;
+    py::gil_scoped_acquire acquire;
+    return py::none();
   }
 
   py::gil_scoped_acquire acquire;
@@ -70,11 +66,7 @@ py::object PyRefineAbsolutePose(
     const PyInlierMask& inlier_mask,
     Camera& camera,
     const AbsolutePoseRefinementOptions& refinement_options) {
-  THROW_CHECK_EQ(points2D.size(), points3D.size());
-  THROW_CHECK_EQ(inlier_mask.size(), points2D.size());
-  py::object failure = py::none();
   py::gil_scoped_release release;
-
   Rigid3d refined_cam_from_world = init_cam_from_world;
   std::vector<char> inlier_mask_char(inlier_mask.size());
   Eigen::Map<Eigen::Matrix<char, Eigen::Dynamic, 1>>(
@@ -85,10 +77,9 @@ py::object PyRefineAbsolutePose(
                           points3D,
                           &refined_cam_from_world,
                           &camera)) {
-    return failure;
+    py::gil_scoped_acquire acquire;
+    return py::none();
   }
-
-  // Success output dictionary.
   py::gil_scoped_acquire acquire;
   return py::dict("cam_from_world"_a = refined_cam_from_world);
 }
@@ -126,7 +117,6 @@ void BindAbsolutePoseEstimator(py::module& m) {
         AbsolutePoseRefinementOptions options;
         options.refine_focal_length = false;
         options.refine_extra_params = false;
-        options.print_summary = false;
         return options;
       }))
       .def_readwrite("gradient_tolerance",

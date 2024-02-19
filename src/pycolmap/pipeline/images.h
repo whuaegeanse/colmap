@@ -6,6 +6,7 @@
 #include "colmap/image/undistortion.h"
 #include "colmap/scene/camera.h"
 #include "colmap/scene/reconstruction.h"
+#include "colmap/util/base_controller.h"
 #include "colmap/util/logging.h"
 #include "colmap/util/misc.h"
 
@@ -36,8 +37,6 @@ void ImportImages(const std::string& database_path,
   options.image_path = image_path;
   options.image_list = image_list;
   UpdateImageReaderOptionsFromCameraMode(options, camera_mode);
-  THROW_CHECK(ExistsCameraModelWithName(options.camera_model))
-      << "Invalid camera model: " << options.camera_model;
 
   Database database(options.database_path);
   ImageReader image_reader(options, &database);
@@ -64,9 +63,8 @@ void ImportImages(const std::string& database_path,
 
 Camera InferCameraFromImage(const std::string& image_path,
                             const ImageReaderOptions& options) {
-  THROW_CHECK_FILE_EXISTS(image_path);
-
   Bitmap bitmap;
+  THROW_CHECK_FILE_EXISTS(image_path);
   THROW_CHECK(bitmap.Read(image_path, false))
       << "Cannot read image file: " << image_path;
 
@@ -96,9 +94,7 @@ void UndistortImages(const std::string& output_path,
                      const CopyType copy_type,
                      const int num_patch_match_src_images,
                      const UndistortCameraOptions& undistort_camera_options) {
-  THROW_CHECK_DIR_EXISTS(input_path);
   THROW_CHECK_DIR_EXISTS(image_path);
-
   CreateDirIfNotExists(output_path);
   Reconstruction reconstruction;
   reconstruction.Read(input_path);
@@ -117,7 +113,7 @@ void UndistortImages(const std::string& output_path,
   }
 
   py::gil_scoped_release release;
-  std::unique_ptr<Thread> undistorter;
+  std::unique_ptr<BaseController> undistorter;
   if (output_type == "COLMAP") {
     undistorter.reset(new COLMAPUndistorter(undistort_camera_options,
                                             reconstruction,
@@ -137,8 +133,7 @@ void UndistortImages(const std::string& output_path,
         << "Invalid `output_type` - supported values are {'COLMAP', "
            "'PMVS', 'CMP-MVS'}.";
   }
-  undistorter->Start();
-  PyWait(undistorter.get());
+  undistorter->Run();
 }
 
 void BindImages(py::module& m) {

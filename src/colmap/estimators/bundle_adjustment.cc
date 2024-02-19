@@ -313,9 +313,8 @@ bool BundleAdjuster::Solve(Reconstruction* reconstruction) {
 
   ceres::Solve(solver_options, problem_.get(), &summary_);
 
-  if (options_.print_summary) {
-    PrintHeading2("Bundle adjustment report");
-    PrintSolverSummary(summary_);
+  if (options_.print_summary || VLOG_IS_ON(1)) {
+    PrintSolverSummary(summary_, "Bundle adjustment report");
   }
 
   TearDown(reconstruction);
@@ -850,9 +849,8 @@ bool RigBundleAdjuster::Solve(Reconstruction* reconstruction,
 
   ceres::Solve(solver_options, problem_.get(), &summary_);
 
-  if (options_.print_summary) {
-    PrintHeading2("Rig Bundle adjustment report");
-    PrintSolverSummary(summary_);
+  if (options_.print_summary || VLOG_IS_ON(1)) {
+    PrintSolverSummary(summary_, "Rig Bundle adjustment report");
   }
 
   TearDown(reconstruction, *camera_rigs);

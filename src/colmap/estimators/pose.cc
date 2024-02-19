@@ -37,7 +37,7 @@
 #include "colmap/geometry/pose.h"
 #include "colmap/math/matrix.h"
 #include "colmap/sensor/models.h"
-#include "colmap/util/misc.h"
+#include "colmap/util/logging.h"
 #include "colmap/util/threading.h"
 
 namespace colmap {
@@ -80,6 +80,7 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           Camera* camera,
                           size_t* num_inliers,
                           std::vector<char>* inlier_mask) {
+  THROW_CHECK_EQ(points2D.size(), points3D.size());
   options.Check();
 
   std::vector<double> focal_length_factors;
@@ -294,9 +295,8 @@ bool RefineAbsolutePose(const AbsolutePoseRefinementOptions& options,
   ceres::Solver::Summary summary;
   ceres::Solve(solver_options, &problem, &summary);
 
-  if (options.print_summary) {
-    PrintHeading2("Pose refinement report");
-    PrintSolverSummary(summary);
+  if (options.print_summary || VLOG_IS_ON(1)) {
+    PrintSolverSummary(summary, "Pose refinement report");
   }
 
   if (problem.NumResiduals() > 0 && cam_from_world_cov != nullptr) {

@@ -27,16 +27,7 @@ py::object PyEstimateAndRefineGeneralizedAbsolutePose(
     const RANSACOptions& ransac_options,
     const AbsolutePoseRefinementOptions& refinement_options,
     const bool return_covariance) {
-  THROW_CHECK_EQ(points2D.size(), points3D.size());
-  THROW_CHECK_EQ(points2D.size(), camera_idxs.size());
-  THROW_CHECK_EQ(cams_from_rig.size(), cameras.size());
-  THROW_CHECK_GE(*std::min_element(camera_idxs.begin(), camera_idxs.end()), 0);
-  THROW_CHECK_LT(*std::max_element(camera_idxs.begin(), camera_idxs.end()),
-                 cameras.size());
-
-  py::object failure = py::none();
   py::gil_scoped_release release;
-
   Rigid3d rig_from_world;
   size_t num_inliers;
   std::vector<char> inlier_mask;
@@ -49,10 +40,10 @@ py::object PyEstimateAndRefineGeneralizedAbsolutePose(
                                        &rig_from_world,
                                        &num_inliers,
                                        &inlier_mask)) {
-    return failure;
+    py::gil_scoped_acquire acquire;
+    return py::none();
   }
 
-  // Absolute pose refinement.
   Eigen::Matrix<double, 6, 6> covariance;
   if (!RefineGeneralizedAbsolutePose(
           refinement_options,
@@ -64,7 +55,8 @@ py::object PyEstimateAndRefineGeneralizedAbsolutePose(
           &rig_from_world,
           &cameras,
           return_covariance ? &covariance : nullptr)) {
-    return failure;
+    py::gil_scoped_acquire acquire;
+    return py::none();
   }
 
   py::gil_scoped_acquire acquire;
