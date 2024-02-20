@@ -227,7 +227,6 @@ class ReprojErrorConstantPosePoint3DCostFunction
                               point3D,
                               camera_params,
                               residuals);
-    return true;
   }
 
  private:
@@ -294,6 +293,119 @@ class RigReprojErrorCostFunction {
   const double observed_y_;
   const double weight_;
 };
+
+// Rig bundle adjustment cost function for variable camera pose and camera
+// calibration and point parameters but fixed rig extrinsic poses.
+template <typename CameraModel>
+class RigReprojErrorConstantRigCostFunction
+    : public RigReprojErrorCostFunction<CameraModel> {
+  using Parent = RigReprojErrorCostFunction<CameraModel>;
+
+ public:
+  explicit RigReprojErrorConstantRigCostFunction(const Rigid3d& cam_from_rig,
+                                                 const Eigen::Vector2d& point2D)
+      : Parent(point2D), cam_from_rig_(cam_from_rig) {}
+
+  static ceres::CostFunction* Create(const Rigid3d& cam_from_rig,
+                                     const Eigen::Vector2d& point2D) {
+    return (new ceres::AutoDiffCostFunction<
+            RigReprojErrorConstantRigCostFunction<CameraModel>,
+            2,
+            4,
+            3,
+            3,
+            CameraModel::num_params>(
+        new RigReprojErrorConstantRigCostFunction(cam_from_rig, point2D)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const rig_from_world_rotation,
+                  const T* const rig_from_world_translation,
+                  const T* const point3D,
+                  const T* const camera_params,
+                  T* residuals) const {
+    const Eigen::Quaternion<T> cam_from_rig_rotation =
+        cam_from_rig_.rotation.cast<T>();
+    const Eigen::Matrix<T, 3, 1> cam_from_rig_translation =
+        cam_from_rig_.translation.cast<T>();
+    return Parent::operator()(cam_from_rig_rotation.coeffs().data(),
+                              cam_from_rig_translation.data(),
+                              rig_from_world_rotation,
+                              rig_from_world_translation,
+                              point3D,
+                              camera_params,
+                              residuals);
+  }
+
+ private:
+  const Rigid3d& cam_from_rig_;
+};
+
+// Cost function for refining two-view geometry based on the Sampson-Error.
+//
+// First pose is assumed to be located at the origin with 0 rotation. Second
+// pose is assumed to be on the unit sphere around the first pose, i.e. the
+// pose of the second camera is parameterized by a 3D rotation and a
+// 3D translation with unit norm. `tvec` is therefore over-parameterized as is
+// and should be down-projected using `SphereManifold`.
+class SampsonErrorCostFunction {
+ public:
+  SampsonErrorCostFunction(const Eigen::Vector2d& x1, const Eigen::Vector2d& x2)
+      : x1_(x1(0)), y1_(x1(1)), x2_(x2(0)), y2_(x2(1)) {}
+
+  static ceres::CostFunction* Create(const Eigen::Vector2d& x1,
+                                     const Eigen::Vector2d& x2) {
+    return (new ceres::AutoDiffCostFunction<SampsonErrorCostFunction, 1, 4, 3>(
+        new SampsonErrorCostFunction(x1, x2)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const cam2_from_cam1_rotation,
+                  const T* const cam2_from_cam1_translation,
+                  T* residuals) const {
+    const Eigen::Matrix<T, 3, 3> R =
+        EigenQuaternionMap<T>(cam2_from_cam1_rotation).toRotationMatrix();
+
+    // Matrix representation of the cross product t x R.
+    Eigen::Matrix<T, 3, 3> t_x;
+    t_x << T(0), -cam2_from_cam1_translation[2], cam2_from_cam1_translation[1],
+        cam2_from_cam1_translation[2], T(0), -cam2_from_cam1_translation[0],
+        -cam2_from_cam1_translation[1], cam2_from_cam1_translation[0], T(0);
+
+    // Essential matrix.
+    const Eigen::Matrix<T, 3, 3> E = t_x * R;
+
+    // Homogeneous image coordinates.
+    const Eigen::Matrix<T, 3, 1> x1_h(T(x1_), T(y1_), T(1));
+    const Eigen::Matrix<T, 3, 1> x2_h(T(x2_), T(y2_), T(1));
+
+    // Squared sampson error.
+    const Eigen::Matrix<T, 3, 1> Ex1 = E * x1_h;
+    const Eigen::Matrix<T, 3, 1> Etx2 = E.transpose() * x2_h;
+    const T x2tEx1 = x2_h.transpose() * Ex1;
+    residuals[0] = x2tEx1 * x2tEx1 /
+                   (Ex1(0) * Ex1(0) + Ex1(1) * Ex1(1) + Etx2(0) * Etx2(0) +
+                    Etx2(1) * Etx2(1));
+
+    return true;
+  }
+
+ private:
+  const double x1_;
+  const double y1_;
+  const double x2_;
+  const double y2_;
+};
+
+template <typename T>
+inline void EigenQuaternionToAngleAxis(const T* eigen_quaternion,
+                                       T* angle_axis) {
+  const T quaternion[4] = {eigen_quaternion[3],
+                           eigen_quaternion[0],
+                           eigen_quaternion[1],
+                           eigen_quaternion[2]};
+  ceres::QuaternionToAngleAxis(quaternion, angle_axis);
+}
 
 // Computes the error term for two poses that have a relative pose measurement
 // between them. Let the hat variables be the measurement. We have two poses x_a
@@ -478,119 +590,6 @@ class Point3DErrorCostFunction {
   const double weight_xy_;
   const double weight_z_;
 };
-
-// Rig bundle adjustment cost function for variable camera pose and camera
-// calibration and point parameters but fixed rig extrinsic poses.
-template <typename CameraModel>
-class RigReprojErrorConstantRigCostFunction
-    : public RigReprojErrorCostFunction<CameraModel> {
-  using Parent = RigReprojErrorCostFunction<CameraModel>;
-
- public:
-  explicit RigReprojErrorConstantRigCostFunction(const Rigid3d& cam_from_rig,
-                                                 const Eigen::Vector2d& point2D)
-      : Parent(point2D), cam_from_rig_(cam_from_rig) {}
-
-  static ceres::CostFunction* Create(const Rigid3d& cam_from_rig,
-                                     const Eigen::Vector2d& point2D) {
-    return (new ceres::AutoDiffCostFunction<
-            RigReprojErrorConstantRigCostFunction<CameraModel>,
-            2,
-            4,
-            3,
-            3,
-            CameraModel::num_params>(
-        new RigReprojErrorConstantRigCostFunction(cam_from_rig, point2D)));
-  }
-
-  template <typename T>
-  bool operator()(const T* const rig_from_world_rotation,
-                  const T* const rig_from_world_translation,
-                  const T* const point3D,
-                  const T* const camera_params,
-                  T* residuals) const {
-    const Eigen::Quaternion<T> cam_from_rig_rotation =
-        cam_from_rig_.rotation.cast<T>();
-    const Eigen::Matrix<T, 3, 1> cam_from_rig_translation =
-        cam_from_rig_.translation.cast<T>();
-    return Parent::operator()(cam_from_rig_rotation.coeffs().data(),
-                              cam_from_rig_translation.data(),
-                              rig_from_world_rotation,
-                              rig_from_world_translation,
-                              point3D,
-                              camera_params,
-                              residuals);
-  }
-
- private:
-  const Rigid3d& cam_from_rig_;
-};
-
-// Cost function for refining two-view geometry based on the Sampson-Error.
-//
-// First pose is assumed to be located at the origin with 0 rotation. Second
-// pose is assumed to be on the unit sphere around the first pose, i.e. the
-// pose of the second camera is parameterized by a 3D rotation and a
-// 3D translation with unit norm. `tvec` is therefore over-parameterized as is
-// and should be down-projected using `SphereManifold`.
-class SampsonErrorCostFunction {
- public:
-  SampsonErrorCostFunction(const Eigen::Vector2d& x1, const Eigen::Vector2d& x2)
-      : x1_(x1(0)), y1_(x1(1)), x2_(x2(0)), y2_(x2(1)) {}
-
-  static ceres::CostFunction* Create(const Eigen::Vector2d& x1,
-                                     const Eigen::Vector2d& x2) {
-    return (new ceres::AutoDiffCostFunction<SampsonErrorCostFunction, 1, 4, 3>(
-        new SampsonErrorCostFunction(x1, x2)));
-  }
-
-  template <typename T>
-  bool operator()(const T* const cam2_from_cam1_rotation,
-                  const T* const cam2_from_cam1_translation,
-                  T* residuals) const {
-    const Eigen::Matrix<T, 3, 3> R =
-        EigenQuaternionMap<T>(cam2_from_cam1_rotation).toRotationMatrix();
-
-    // Matrix representation of the cross product t x R.
-    Eigen::Matrix<T, 3, 3> t_x;
-    t_x << T(0), -cam2_from_cam1_translation[2], cam2_from_cam1_translation[1],
-        cam2_from_cam1_translation[2], T(0), -cam2_from_cam1_translation[0],
-        -cam2_from_cam1_translation[1], cam2_from_cam1_translation[0], T(0);
-
-    // Essential matrix.
-    const Eigen::Matrix<T, 3, 3> E = t_x * R;
-
-    // Homogeneous image coordinates.
-    const Eigen::Matrix<T, 3, 1> x1_h(T(x1_), T(y1_), T(1));
-    const Eigen::Matrix<T, 3, 1> x2_h(T(x2_), T(y2_), T(1));
-
-    // Squared sampson error.
-    const Eigen::Matrix<T, 3, 1> Ex1 = E * x1_h;
-    const Eigen::Matrix<T, 3, 1> Etx2 = E.transpose() * x2_h;
-    const T x2tEx1 = x2_h.transpose() * Ex1;
-    residuals[0] = x2tEx1 * x2tEx1 /
-                   (Ex1(0) * Ex1(0) + Ex1(1) * Ex1(1) + Etx2(0) * Etx2(0) +
-                    Etx2(1) * Etx2(1));
-
-    return true;
-  }
-
- private:
-  const double x1_;
-  const double y1_;
-  const double x2_;
-  const double y2_;
-};
-
-template <typename T>
-inline void EigenQuaternionToAngleAxis(const T* eigen_quaternion,
-                                       T* angle_axis) {
-  const T quaternion[4] = {eigen_quaternion[3],
-                           eigen_quaternion[0],
-                           eigen_quaternion[1],
-                           eigen_quaternion[2]};
-  ceres::QuaternionToAngleAxis(quaternion, angle_axis);
-}
 
 // 6-DoF error on the absolute pose. The residual is the log of the error pose,
 // splitting SE(3) into SO(3) x R^3. The 6x6 covariance matrix is defined in the
