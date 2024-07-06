@@ -30,11 +30,11 @@
 #include "colmap/controllers/option_manager.h"
 
 #include "colmap/controllers/feature_extraction.h"
-#include "colmap/controllers/feature_matching.h"
 #include "colmap/controllers/image_reader.h"
 #include "colmap/controllers/incremental_mapper.h"
 #include "colmap/estimators/bundle_adjustment.h"
 #include "colmap/estimators/two_view_geometry.h"
+#include "colmap/feature/pairing.h"
 #include "colmap/feature/sift.h"
 #include "colmap/math/random.h"
 #include "colmap/mvs/fusion.h"
@@ -407,8 +407,6 @@ void OptionManager::AddSpatialMatchingOptions() {
 
   AddMatchingOptions();
 
-  AddAndRegisterDefaultOption("SpatialMatching.is_gps",
-                              &spatial_matching->is_gps);
   AddAndRegisterDefaultOption("SpatialMatching.ignore_z",
                               &spatial_matching->ignore_z);
   AddAndRegisterDefaultOption("SpatialMatching.max_num_neighbors",

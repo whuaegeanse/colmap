@@ -40,7 +40,9 @@ jobs:
 
       - name: Setup Mac
         run: |
-          rm -f '/usr/local/bin/2to3*'  # Fix `brew link` error.
+          # Fix `brew link` error.
+          find /usr/local/bin -lname '*/Library/Frameworks/Python.framework/*' -delete
+
           brew install \
             cmake \
             ninja \
@@ -74,13 +76,8 @@ jobs:
       - name: Run tests
         run: |
           cd build
-          ctest
-          tests_pass=$?
-          if [ $tests_pass -ne 0 ]; then
-              echo "\n\n\nTests failed, rerunning with verbose output"
-              ctest --rerun-failed --output-on-failure
-          fi
-          exit $tests_pass
+          set +e
+          ctest --output-on-failure
 
       - name: Cleanup compiler cache
         run: |

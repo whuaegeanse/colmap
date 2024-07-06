@@ -2,6 +2,9 @@
 set -x -e
 CURRDIR=$(pwd)
 
+# Fix `brew link` error.
+find /usr/local/bin -lname '*/Library/Frameworks/Python.framework/*' -delete
+
 brew update
 brew install git cmake ninja llvm ccache
 
@@ -20,9 +23,10 @@ cd ${CURRDIR}
 mkdir build && cd build
 export ARCHFLAGS="-arch ${CIBW_ARCHS_MACOS}"
 cmake .. -GNinja \
-    -DGUI_ENABLED=OFF \
     -DCUDA_ENABLED=OFF \
+    -DGUI_ENABLED=OFF \
     -DCGAL_ENABLED=OFF \
+    -DLSD_ENABLED=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCCACHE_ENABLED=ON \
     -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
