@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright (c) 2023, ETH Zurich and UNC Chapel Hill.
 # All rights reserved.
 #
@@ -27,60 +28,25 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+# Script to perform profiling on a command. For example:
+#   ./profile_binary.sh ./src/colmap/exe/colmap automatic_reconstructor ...
 
-# Find package config for COLMAP library.
-#
-# The following variables are set by this config:
-#
-#   COLMAP_FOUND: TRUE if COLMAP is found.
-#   COLMAP_VERSION: COLMAP version.
-#
-# The colmap::colmap imported interface target is defined.
+perf_bin=$(find /usr/lib/linux-tools -name perf | head -1)
+if [[ -z $perf_bin ]]; then
+    echo "Error: Perf tool not found. Under ubuntu, install as:"
+    echo "       sudo apt-get install linux-tools-generic"
+    exit 1
+fi
 
-@PACKAGE_INIT@
+"$perf_bin" record -e cycles:u -g "$@"
 
-set(COLMAP_FOUND FALSE)
+binary_filename=$(basename -- "${binary_path}")
+profile_path="$binary_filename.perf.data"
+mv perf.data "$profile_path"
 
-# Set hints for finding dependency packages.
-
-set(FLANN_INCLUDE_DIR_HINTS @FLANN_INCLUDE_DIR_HINTS@)
-set(FLANN_LIBRARY_DIR_HINTS @FLANN_LIBRARY_DIR_HINTS@)
-
-set(LZ4_INCLUDE_DIR_HINTS @LZ4_INCLUDE_DIR_HINTS@)
-set(LZ4_LIBRARY_DIR_HINTS @LZ4_LIBRARY_DIR_HINTS@)
-
-set(FREEIMAGE_INCLUDE_DIR_HINTS @FREEIMAGE_INCLUDE_DIR_HINTS@)
-set(FREEIMAGE_LIBRARY_DIR_HINTS @FREEIMAGE_LIBRARY_DIR_HINTS@)
-
-set(METIS_INCLUDE_DIR_HINTS @METIS_INCLUDE_DIR_HINTS@)
-set(METIS_LIBRARY_DIR_HINTS @METIS_LIBRARY_DIR_HINTS@)
-
-set(GLEW_INCLUDE_DIR_HINTS @GLEW_INCLUDE_DIR_HINTS@)
-set(GLEW_LIBRARY_DIR_HINTS @GLEW_LIBRARY_DIR_HINTS@)
-
-# Find dependency packages.
-
-set(TEMP_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
-set(CMAKE_MODULE_PATH ${PACKAGE_PREFIX_DIR}/share/colmap/cmake)
-
-# Set the exported variables.
-
-set(COLMAP_FOUND TRUE)
-
-set(COLMAP_VERSION @COLMAP_VERSION@)
-
-set(OPENMP_ENABLED @OPENMP_ENABLED@)
-
-set(CUDA_ENABLED @CUDA_ENABLED@)
-set(CUDA_MIN_VERSION @CUDA_MIN_VERSION@)
-
-set(GUI_ENABLED @GUI_ENABLED@)
-
-set(CGAL_ENABLED @CGAL_ENABLED@)
-
-include(${PACKAGE_PREFIX_DIR}/share/colmap/colmap-targets.cmake)
-include(${PACKAGE_PREFIX_DIR}/share/colmap/cmake/FindDependencies.cmake)
-check_required_components(colmap)
-
-# Reset to previous value
-set(CMAKE_MODULE_PATH ${TEMP_CMAKE_MODULE_PATH})
+echo "#####################################################################"
+echo "###### Profiling finished. Inspect results using the commands: ######"
+echo "#####################################################################"
+echo "If the perf output contains unknown list items, recompile with RelWithDebInfo"
+echo "$perf_bin report -i $profile_path"
+echo "$perf_bin report --stdio -g graph,0.5,caller -i $profile_path"
