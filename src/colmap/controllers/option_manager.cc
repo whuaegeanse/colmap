@@ -31,7 +31,7 @@
 
 #include "colmap/controllers/feature_extraction.h"
 #include "colmap/controllers/image_reader.h"
-#include "colmap/controllers/incremental_mapper.h"
+#include "colmap/controllers/incremental_pipeline.h"
 #include "colmap/estimators/bundle_adjustment.h"
 #include "colmap/estimators/two_view_geometry.h"
 #include "colmap/feature/pairing.h"
@@ -41,10 +41,9 @@
 #include "colmap/mvs/meshing.h"
 #include "colmap/mvs/patch_match.h"
 #include "colmap/ui/render_options.h"
-#include "colmap/util/misc.h"
+#include "colmap/util/file.h"
 #include "colmap/util/version.h"
 
-#include <boost/filesystem/operations.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
 namespace config = boost::program_options;
