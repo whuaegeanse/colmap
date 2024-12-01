@@ -74,7 +74,7 @@ endif()
 
 project(COLMAP LANGUAGES C CXX)
 
-set(COLMAP_VERSION "3.11.0.dev0")
+set(COLMAP_VERSION "3.12.0.dev0")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -153,6 +153,11 @@ if(IS_GNU)
     # Hide incorrect warnings for uninitialized Eigen variables under GCC.
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-maybe-uninitialized")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-maybe-uninitialized")
+endif()
+
+if(IS_MACOS)
+    # Mitigate CMake limitation, see: https://discourse.cmake.org/t/avoid-duplicate-linking-to-avoid-xcode-15-warnings/9084/10
+    add_link_options(LINKER:-no_warn_duplicate_libraries)
 endif()
 
 if(IS_DEBUG)
