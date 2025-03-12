@@ -1,4 +1,4 @@
-// Copyright (c) 2023, ETH Zurich and UNC Chapel Hill.
+// Copyright (c), ETH Zurich and UNC Chapel Hill.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -701,12 +701,13 @@ class RigBundleAdjuster : public BundleAdjuster {
     CameraRig* camera_rig = nullptr;
     Eigen::Matrix3x4d cam_from_world_mat = Eigen::Matrix3x4d::Zero();
 
-    if (image_id_to_camera_rig_.count(image_id) > 0) {
+    if (const auto it = image_id_to_camera_rig_.find(image_id);
+        it != image_id_to_camera_rig_.end()) {
       THROW_CHECK(!constant_cam_pose)
           << "Images contained in a camera rig must not have constant pose";
       THROW_CHECK(!constant_cam_position)
           << "Images contained in a camera rig must not have constant tvec";
-      camera_rig = image_id_to_camera_rig_.at(image_id);
+      camera_rig = it->second;
       Rigid3d& rig_from_world = *image_id_to_rig_from_world_.at(image_id);
       rig_from_world_rotation = rig_from_world.rotation.coeffs().data();
       rig_from_world_translation = rig_from_world.translation.data();
@@ -1011,17 +1012,28 @@ class PosePriorBundleAdjuster : public BundleAdjuster {
 
   bool AlignReconstruction() {
     RANSACOptions ransac_options;
-    ransac_options.max_error = -1;
-    size_t num_covs = 0;
-    Eigen::Vector3d avg_cov = Eigen::Vector3d::Zero();
-    for (const auto& [_, pose_prior] : pose_priors_) {
-      if (pose_prior.IsCovarianceValid()) {
-        avg_cov += pose_prior.position_covariance.diagonal();
-        ++num_covs;
+    if (prior_options_.ransac_max_error > 0) {
+      ransac_options.max_error = prior_options_.ransac_max_error;
+    } else {
+      double max_stddev_sum = 0;
+      size_t num_valid_covs = 0;
+      for (const auto& [_, pose_prior] : pose_priors_) {
+        if (pose_prior.IsCovarianceValid()) {
+          const double max_stddev =
+              std::sqrt(Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d>(
+                            pose_prior.position_covariance)
+                            .eigenvalues()
+                            .maxCoeff());
+          max_stddev_sum += max_stddev;
+          ++num_valid_covs;
+        }
       }
-    }
-    if (num_covs > 0) {
-      ransac_options.max_error = (3. * (avg_cov / num_covs).cwiseSqrt()).norm();
+      if (num_valid_covs == 0) {
+        LOG(WARNING) << "No pose priors with valid covariance found.";
+        return false;
+      }
+      // Set max error at the 3 sigma confidence interval. Assumes no outliers.
+      ransac_options.max_error = 3 * max_stddev_sum / num_valid_covs;
     }
 
     Sim3d metric_from_orig;
