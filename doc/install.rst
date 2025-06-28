@@ -81,7 +81,6 @@ Dependencies from the default Ubuntu repositories::
         libboost-graph-dev \
         libboost-system-dev \
         libeigen3-dev \
-        libflann-dev \
         libfreeimage-dev \
         libmetis-dev \
         libgoogle-glog-dev \
@@ -93,7 +92,8 @@ Dependencies from the default Ubuntu repositories::
         libqt5opengl5-dev \
         libcgal-dev \
         libceres-dev \
-        libcurl4-openssl-dev
+        libcurl4-openssl-dev \
+        libmkl-full-dev
 
 To compile with **CUDA support**, also install Ubuntu's default CUDA package::
 
@@ -112,7 +112,7 @@ Configure and compile COLMAP::
     cd colmap
     mkdir build
     cd build
-    cmake .. -GNinja
+    cmake .. -GNinja -DBLA_VENDOR=Intel10_64lp
     ninja
     sudo ninja install
 
@@ -135,6 +135,11 @@ CUDA package and GCC, and you must compile against GCC 10::
     export CUDAHOSTCXX=/usr/bin/g++-10
     # ... and then run CMake against COLMAP's sources.
 
+Notice that the `BLA_VENDOR=Intel10_64lp` option tells CMake to find Intel's MKL
+implementation of BLAS. If you decide to compile against OpenBLAS instead of
+MKL, you must install and select the OpenMP version under Debian/Ubuntu because
+of `this issue <https://github.com/facebookresearch/faiss/wiki/Troubleshooting#surprising-faiss-openmp-and-openblas-interaction>`__.
+
 Mac
 ---
 
@@ -145,9 +150,9 @@ Dependencies from `Homebrew <http://brew.sh/>`__::
         ninja \
         boost \
         eigen \
-        flann \
         freeimage \
         curl \
+        libomp \
         metis \
         glog \
         googletest \
@@ -156,6 +161,7 @@ Dependencies from `Homebrew <http://brew.sh/>`__::
         glew \
         cgal \
         sqlite3
+    brew link --force libomp
 
 Configure and compile COLMAP::
 
@@ -163,7 +169,9 @@ Configure and compile COLMAP::
     cd colmap
     mkdir build
     cd build
-    cmake .. -GNinja -DCMAKE_PREFIX_PATH="$(brew --prefix qt@5)"
+    cmake .. \
+        -GNinja \
+        -DQt5_DIR="$(brew --prefix qt@5)/lib/cmake/Qt5"
     ninja
     sudo ninja install
 
@@ -276,7 +284,7 @@ with the source code ``hello_world.cc``::
         options.AddRequiredOption("message", &message);
         options.Parse(argc, argv);
 
-        std::cout << colmap::StringPrintf("Hello %s!", message.c_str()) << std::endl;
+        std::cout << colmap::StringPrintf("Hello %s!\n", message.c_str());
 
         return EXIT_SUCCESS;
     }
