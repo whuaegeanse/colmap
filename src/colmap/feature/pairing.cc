@@ -43,6 +43,7 @@
 #include <vector>
 
 #include <faiss/IndexFlat.h>
+#include <omp.h>
 
 namespace colmap {
 namespace {
@@ -96,19 +97,19 @@ std::vector<std::pair<image_t, image_t>> ReadImagePairsText(
 
 }  // namespace
 
-bool ExhaustiveMatchingOptions::Check() const {
+bool ExhaustivePairingOptions::Check() const {
   CHECK_OPTION_GT(block_size, 1);
   return true;
 }
 
-bool VocabTreeMatchingOptions::Check() const {
+bool VocabTreePairingOptions::Check() const {
   CHECK_OPTION_GT(num_images, 0);
   CHECK_OPTION_GT(num_nearest_neighbors, 0);
   CHECK_OPTION_GT(num_checks, 0);
   return true;
 }
 
-bool SequentialMatchingOptions::Check() const {
+bool SequentialPairingOptions::Check() const {
   CHECK_OPTION_GT(overlap, 0);
   CHECK_OPTION_GT(loop_detection_period, 0);
   CHECK_OPTION_GT(loop_detection_num_images, 0);
@@ -117,8 +118,8 @@ bool SequentialMatchingOptions::Check() const {
   return true;
 }
 
-VocabTreeMatchingOptions SequentialMatchingOptions::VocabTreeOptions() const {
-  VocabTreeMatchingOptions options;
+VocabTreePairingOptions SequentialPairingOptions::VocabTreeOptions() const {
+  VocabTreePairingOptions options;
   options.num_images = loop_detection_num_images;
   options.num_nearest_neighbors = loop_detection_num_nearest_neighbors;
   options.num_checks = loop_detection_num_checks;
@@ -130,19 +131,22 @@ VocabTreeMatchingOptions SequentialMatchingOptions::VocabTreeOptions() const {
   return options;
 }
 
-bool SpatialMatchingOptions::Check() const {
+bool SpatialPairingOptions::Check() const {
+  CHECK_OPTION_GE(max_distance, 0.0);
   CHECK_OPTION_GT(max_num_neighbors, 0);
-  CHECK_OPTION_GT(max_distance, 0.0);
+  CHECK_OPTION_LE(min_num_neighbors, max_num_neighbors);
+  CHECK_OPTION_GE(min_num_neighbors, 0);
+  CHECK_OPTION(max_distance > 0.0 || min_num_neighbors > 0);
   return true;
 }
 
-bool TransitiveMatchingOptions::Check() const {
+bool TransitivePairingOptions::Check() const {
   CHECK_OPTION_GT(batch_size, 0);
   CHECK_OPTION_GT(num_iterations, 0);
   return true;
 }
 
-bool ImagePairsMatchingOptions::Check() const {
+bool ImportedPairingOptions::Check() const {
   CHECK_OPTION_GT(block_size, 0);
   return true;
 }
@@ -161,7 +165,7 @@ std::vector<std::pair<image_t, image_t>> PairGenerator::AllPairs() {
 }
 
 ExhaustivePairGenerator::ExhaustivePairGenerator(
-    const ExhaustiveMatchingOptions& options,
+    const ExhaustivePairingOptions& options,
     const std::shared_ptr<FeatureMatcherCache>& cache)
     : options_(options),
       image_ids_(THROW_CHECK_NOTNULL(cache)->GetImageIds()),
@@ -175,7 +179,7 @@ ExhaustivePairGenerator::ExhaustivePairGenerator(
 }
 
 ExhaustivePairGenerator::ExhaustivePairGenerator(
-    const ExhaustiveMatchingOptions& options,
+    const ExhaustivePairingOptions& options,
     const std::shared_ptr<Database>& database)
     : ExhaustivePairGenerator(
           options,
@@ -227,7 +231,7 @@ std::vector<std::pair<image_t, image_t>> ExhaustivePairGenerator::Next() {
 }
 
 VocabTreePairGenerator::VocabTreePairGenerator(
-    const VocabTreeMatchingOptions& options,
+    const VocabTreePairingOptions& options,
     const std::shared_ptr<FeatureMatcherCache>& cache,
     const std::vector<image_t>& query_image_ids)
     : options_(options),
@@ -286,7 +290,7 @@ VocabTreePairGenerator::VocabTreePairGenerator(
 }
 
 VocabTreePairGenerator::VocabTreePairGenerator(
-    const VocabTreeMatchingOptions& options,
+    const VocabTreePairingOptions& options,
     const std::shared_ptr<Database>& database,
     const std::vector<image_t>& query_image_ids)
     : VocabTreePairGenerator(
@@ -397,7 +401,7 @@ void VocabTreePairGenerator::Query(const image_t image_id) {
 }
 
 SequentialPairGenerator::SequentialPairGenerator(
-    const SequentialMatchingOptions& options,
+    const SequentialPairingOptions& options,
     const std::shared_ptr<FeatureMatcherCache>& cache)
     : options_(options), cache_(THROW_CHECK_NOTNULL(cache)) {
   THROW_CHECK(options.Check());
@@ -431,7 +435,7 @@ SequentialPairGenerator::SequentialPairGenerator(
 }
 
 SequentialPairGenerator::SequentialPairGenerator(
-    const SequentialMatchingOptions& options,
+    const SequentialPairingOptions& options,
     const std::shared_ptr<Database>& database)
     : SequentialPairGenerator(
           options,
@@ -543,7 +547,7 @@ std::vector<image_t> SequentialPairGenerator::GetOrderedImageIds() const {
 }
 
 SpatialPairGenerator::SpatialPairGenerator(
-    const SpatialMatchingOptions& options,
+    const SpatialPairingOptions& options,
     const std::shared_ptr<FeatureMatcherCache>& cache)
     : options_(options), image_ids_(THROW_CHECK_NOTNULL(cache)->GetImageIds()) {
   LOG(INFO) << "Generating spatial image pairs...";
@@ -561,6 +565,13 @@ SpatialPairGenerator::SpatialPairGenerator(
     LOG(INFO) << "=> No images with location data.";
     return;
   }
+  if (num_positions <= options_.min_num_neighbors) {
+    LOG(WARNING) << StringPrintf(
+        "min_num_neighbors (%d) exceeds number of images with location data "
+        "(%zu), this may limit the number of matched pairs.",
+        options_.min_num_neighbors,
+        num_positions);
+  }
 
   timer.Restart();
   LOG(INFO) << "Building search index...";
@@ -577,21 +588,21 @@ SpatialPairGenerator::SpatialPairGenerator(
   image_pairs_.reserve(knn_);
 
   index_matrix_.resize(num_positions, knn_);
-  distance_matrix_.resize(num_positions, knn_);
+  distance_squared_matrix_.resize(num_positions, knn_);
 
   omp_set_num_threads(GetEffectiveNumThreads(options_.num_threads));
 
   search_index.search(position_matrix.rows(),
                       position_matrix.data(),
                       knn_,
-                      distance_matrix_.data(),
+                      distance_squared_matrix_.data(),
                       index_matrix_.data());
 
   LOG(INFO) << StringPrintf(" in %.3fs", timer.ElapsedSeconds());
 }
 
 SpatialPairGenerator::SpatialPairGenerator(
-    const SpatialMatchingOptions& options,
+    const SpatialPairingOptions& options,
     const std::shared_ptr<Database>& database)
     : SpatialPairGenerator(
           options,
@@ -612,7 +623,7 @@ std::vector<std::pair<image_t, image_t>> SpatialPairGenerator::Next() {
 
   LOG(INFO) << StringPrintf(
       "Matching image [%d/%d]", current_idx_ + 1, position_idxs_.size());
-  const float max_distance =
+  const float max_distance_squared =
       static_cast<float>(options_.max_distance * options_.max_distance);
   for (int j = 0; j < knn_; ++j) {
     // Check if query equals result.
@@ -620,8 +631,10 @@ std::vector<std::pair<image_t, image_t>> SpatialPairGenerator::Next() {
       continue;
     }
 
-    // Since the nearest neighbors are sorted by distance, we can break.
-    if (distance_matrix_(current_idx_, j) > max_distance) {
+    // Since the nearest neighbors are sorted by distance, we can break
+    // once the distance is too large and enough neighbors are collected.
+    if (distance_squared_matrix_(current_idx_, j) > max_distance_squared &&
+        j > options_.min_num_neighbors) {
       break;
     }
 
@@ -639,24 +652,25 @@ Eigen::RowMajorMatrixXf SpatialPairGenerator::ReadPositionPriorData(
   GPSTransform gps_transform;
   std::vector<Eigen::Vector3d> ells(1);
 
-  size_t num_positions = 0;
+  Eigen::RowMajorMatrixXd position_matrix(image_ids_.size(), 3);
   position_idxs_.clear();
   position_idxs_.reserve(image_ids_.size());
-  Eigen::RowMajorMatrixXf position_matrix(image_ids_.size(), 3);
 
   for (size_t i = 0; i < image_ids_.size(); ++i) {
     const PosePrior* pose_prior = cache.GetPosePriorOrNull(image_ids_[i]);
     if (pose_prior == nullptr) {
       continue;
     }
+
     const Eigen::Vector3d& position_prior = pose_prior->position;
     if ((position_prior(0) == 0 && position_prior(1) == 0 &&
-         options_.ignore_z) ||
-        (position_prior(0) == 0 && position_prior(1) == 0 &&
-         position_prior(2) == 0 && !options_.ignore_z)) {
+         position_prior(2) == 0) ||
+        (options_.ignore_z && position_prior(0) == 0 &&
+         position_prior(1) == 0)) {
       continue;
     }
 
+    const size_t position_idx = position_idxs_.size();
     position_idxs_.push_back(i);
 
     switch (pose_prior->coordinate_system) {
@@ -665,38 +679,40 @@ Eigen::RowMajorMatrixXf SpatialPairGenerator::ReadPositionPriorData(
         ells[0](1) = position_prior(1);
         ells[0](2) = options_.ignore_z ? 0 : position_prior(2);
 
-        const auto xyzs = gps_transform.EllipsoidToECEF(ells);
-        position_matrix(num_positions, 0) = static_cast<float>(xyzs[0](0));
-        position_matrix(num_positions, 1) = static_cast<float>(xyzs[0](1));
-        position_matrix(num_positions, 2) = static_cast<float>(xyzs[0](2));
+        const std::vector<Eigen::Vector3d> xyzs =
+            gps_transform.EllipsoidToECEF(ells);
+        position_matrix(position_idx, 0) = xyzs[0](0);
+        position_matrix(position_idx, 1) = xyzs[0](1);
+        position_matrix(position_idx, 2) = xyzs[0](2);
       } break;
       case PosePrior::CoordinateSystem::UNDEFINED:
       default:
         LOG(WARNING) << "Unknown coordinate system for image " << image_ids_[i]
                      << ", assuming cartesian.";
       case PosePrior::CoordinateSystem::CARTESIAN:
-        position_matrix(num_positions, 0) =
-            static_cast<float>(position_prior(0));
-        position_matrix(num_positions, 1) =
-            static_cast<float>(position_prior(1));
-        position_matrix(num_positions, 2) =
-            static_cast<float>(options_.ignore_z ? 0 : position_prior(2));
+        position_matrix(position_idx, 0) = position_prior(0);
+        position_matrix(position_idx, 1) = position_prior(1);
+        position_matrix(position_idx, 2) =
+            options_.ignore_z ? 0 : position_prior(2);
     }
-
-    num_positions += 1;
   }
-  return position_matrix;
+
+  // Subtract the mean coordinate before casting to float for better numerical
+  // precision when dealing with large coordinates (e.g. GPS). For even better
+  // precision, we could also rescale the coordinates.
+  position_matrix.rowwise() -= position_matrix.colwise().mean();
+  return position_matrix.topRows(position_idxs_.size()).cast<float>();
 }
 
 TransitivePairGenerator::TransitivePairGenerator(
-    const TransitiveMatchingOptions& options,
+    const TransitivePairingOptions& options,
     const std::shared_ptr<FeatureMatcherCache>& cache)
     : options_(options), cache_(cache) {
   THROW_CHECK(options.Check());
 }
 
 TransitivePairGenerator::TransitivePairGenerator(
-    const TransitiveMatchingOptions& options,
+    const TransitivePairingOptions& options,
     const std::shared_ptr<Database>& database)
     : TransitivePairGenerator(
           options,
@@ -783,7 +799,7 @@ std::vector<std::pair<image_t, image_t>> TransitivePairGenerator::Next() {
 }
 
 ImportedPairGenerator::ImportedPairGenerator(
-    const ImagePairsMatchingOptions& options,
+    const ImportedPairingOptions& options,
     const std::shared_ptr<FeatureMatcherCache>& cache)
     : options_(options) {
   THROW_CHECK(options.Check());
@@ -802,7 +818,7 @@ ImportedPairGenerator::ImportedPairGenerator(
 }
 
 ImportedPairGenerator::ImportedPairGenerator(
-    const ImagePairsMatchingOptions& options,
+    const ImportedPairingOptions& options,
     const std::shared_ptr<Database>& database)
     : ImportedPairGenerator(
           options,
