@@ -33,7 +33,6 @@ class Sift {
  public:
   Sift(std::optional<FeatureExtractionOptions> options, Device device)
       : use_gpu_(IsGPU(device)) {
-    VerifyGPUParams(use_gpu_);
     if (options) {
       options_ = std::move(*options);
     } else {
@@ -50,6 +49,7 @@ class Sift {
       options_.sift->max_image_size = 7000;
     }
     options_.use_gpu = use_gpu_;
+    THROW_CHECK(options_.Check());
     extractor_ = THROW_CHECK_NOTNULL(CreateSiftFeatureExtractor(options_));
   }
 
@@ -115,8 +115,7 @@ void BindFeatureExtraction(py::module& m) {
   AddStringToEnumConstructor(PyNormalization);
 
   auto PySiftExtractionOptions =
-      py::class_<SiftExtractionOptions, std::shared_ptr<SiftExtractionOptions>>(
-          m, "SiftExtractionOptions")
+      py::classh<SiftExtractionOptions>(m, "SiftExtractionOptions")
           .def(py::init<>())
           .def_readwrite(
               "max_image_size",
@@ -172,9 +171,7 @@ void BindFeatureExtraction(py::module& m) {
   MakeDataclass(PySiftExtractionOptions);
 
   auto PyFeatureExtractionOptions =
-      py::class_<FeatureExtractionOptions,
-                 std::shared_ptr<FeatureExtractionOptions>>(
-          m, "FeatureExtractionOptions")
+      py::classh<FeatureExtractionOptions>(m, "FeatureExtractionOptions")
           .def(py::init<>())
           .def_readwrite("num_threads",
                          &FeatureExtractionOptions::num_threads,
@@ -190,7 +187,7 @@ void BindFeatureExtraction(py::module& m) {
           .def("check", &FeatureExtractionOptions::Check);
   MakeDataclass(PyFeatureExtractionOptions);
 
-  py::class_<Sift>(m, "Sift")
+  py::classh<Sift>(m, "Sift")
       .def(py::init<std::optional<FeatureExtractionOptions>, Device>(),
            "options"_a = std::nullopt,
            "device"_a = Device::AUTO)
